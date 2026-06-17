@@ -1,0 +1,1977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzE2MTgxYyIvPjxjaXJjbGUgY3g9IjE2IiBjeT0iMTYiIHI9IjkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2E3OGJmYSIgc3Ryb2tlLXdpZHRoPSIyLjUiLz48cG9seWxpbmUgcG9pbnRzPSIxMSwxNiAxNC41LDE5LjUgMjEsMTMiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzNlY2Y4ZSIgc3Ryb2tlLXdpZHRoPSIyLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Habit Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #2e3440;
+    --bg2: #3b4252;
+    --bg3: #434c5e;
+    --bg4: #4c566a;
+    --border: rgba(216, 222, 233, 0.12);
+    --border2: rgba(216, 222, 233, 0.22);
+    --text: #eceff4;
+    --text2: #d8dee9;
+    --text3: #a3be8c;
+    --good: #a3be8c;
+    --good-bg: rgba(163, 190, 140, 0.1);
+    --good-border: rgba(163, 190, 140, 0.3);
+    --bad: #bf616a;
+    --bad-bg: rgba(191, 97, 106, 0.1);
+    --bad-border: rgba(191, 97, 106, 0.3);
+    --accent: #81a1c1;
+    --accent2: #88c0d0;
+    --accent-bg: rgba(129, 161, 193, 0.12);
+    --frost: #5e81ac;
+    --done-good: #a3be8c;
+    --done-bad: #bf616a;
+    --aurora-yellow: #ebcb8b;
+    --skipped: rgba(216, 222, 233, 0.05);
+    --radius: 10px;
+    --radius-lg: 14px;
+    --max-w: 860px;
+    --font: 'Martian Mono', 'Cascadia Code', 'Fira Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0 0 80px;
+  }
+
+  /* HEADER */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px 0;
+    position: sticky;
+    top: 0;
+    background: rgba(46, 52, 64, 0.97);
+    backdrop-filter: blur(16px);
+    z-index: 100;
+  }
+  .header-inner {
+    width: 100%;
+    max-width: var(--max-w);
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .logo { font-family: var(--font); font-size: 18px; letter-spacing: -0.5px; color: var(--text); font-weight: 700; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+  .logo-svg { width: 20px; height: 20px; flex-shrink: 0; }
+  .logo span { color: var(--accent); }
+  .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .date-display {
+    font-family: var(--font);
+    font-size: 12px;
+    color: var(--text2);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 5px 12px;
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+
+  /* BUTTONS */
+  button {
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 500;
+    border: none;
+    transition: all 0.15s;
+  }
+  .btn {
+    padding: 7px 14px;
+    border-radius: 7px;
+    border: 1px solid var(--border2);
+    background: var(--bg3);
+    color: var(--text);
+  }
+  .btn:hover { background: var(--bg4); border-color: rgba(255,255,255,0.2); }
+  .btn-accent {
+    background: var(--frost);
+    color: var(--text);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 7px;
+    font-weight: 600;
+  }
+  .btn-accent:hover { background: var(--accent); transform: translateY(-1px); }
+  .btn-sm { padding: 5px 10px; font-size: 11px; border-radius: 6px; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text2); padding: 5px 11px; border-radius: 6px; }
+  .btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+  .btn-danger { background: var(--bad-bg); border: 1px solid var(--bad-border); color: var(--bad); }
+  .btn-danger:hover { background: rgba(191,97,106,0.22); }
+
+  /* TABS */
+  .tabs-wrap {
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+  }
+  .tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 24px;
+    max-width: var(--max-w);
+    margin: 0 auto;
+  }
+  .tab {
+    padding: 12px 18px;
+    border-radius: 0;
+    background: transparent;
+    border: none;
+    color: var(--text3);
+    font-weight: 500;
+    font-size: 13px;
+    transition: all 0.15s;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+  }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent2); }
+  .tab:hover:not(.active) { color: var(--text2); }
+
+  /* MAIN */
+  main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
+
+  /* SECTION */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* TODAY VIEW */
+  .today-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    gap: 16px;
+  }
+  .today-header-left h2 {
+    font-family: var(--font);
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .today-header-left p { color: var(--text2); font-size: 14px; margin-top: 4px; }
+
+  .date-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .date-nav input[type="date"] {
+    font-family: var(--font);
+    font-size: 12px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    padding: 7px 12px;
+    border-radius: 7px;
+    outline: none;
+    cursor: pointer;
+  }
+  .date-nav input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.5); cursor: pointer; }
+
+  /* STATS ROW */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+  }
+  .stat-card .stat-val {
+    font-family: var(--font);
+    font-size: 28px;
+    color: var(--text);
+    line-height: 1;
+    font-weight: 700;
+  }
+  .stat-card .stat-label { font-size: 12px; color: var(--text2); margin-top: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-card.good { border-color: var(--good-border); }
+  .stat-card.good .stat-val { color: var(--good); }
+  .stat-card.bad { border-color: var(--bad-border); }
+  .stat-card.bad .stat-val { color: var(--bad); }
+
+  /* HABIT LIST */
+  .habit-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text3);
+    margin: 24px 0 12px;
+  }
+
+  .habit-item {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 8px;
+    transition: border-color 0.15s;
+  }
+  .habit-item:hover { border-color: var(--border2); }
+  .habit-item.done-yes { border-left: 3px solid var(--good); }
+  .habit-item.done-no { border-left: 3px solid var(--bad); }
+
+  .habit-type-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .habit-type-dot.good { background: var(--good); }
+  .habit-type-dot.bad { background: var(--bad); }
+
+  .habit-info { flex: 1; min-width: 0; }
+  .habit-info .name { font-weight: 500; font-size: 15px; color: var(--text); }
+  .habit-info .meta { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+  .habit-streak {
+    font-family: var(--font);
+    font-size: 11px;
+    color: var(--text3);
+    padding: 3px 8px;
+    background: var(--bg3);
+    border-radius: 6px;
+    white-space: nowrap;
+  }
+  .habit-streak.fire { color: #fbbf24; background: rgba(251,191,36,0.1); }
+
+  .habit-actions { display: flex; gap: 8px; align-items: center; }
+  .check-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    border: 1.5px solid;
+    background: transparent;
+    transition: all 0.15s;
+  }
+  .check-btn.yes { border-color: var(--good-border); color: var(--good); }
+  .check-btn.yes.active, .check-btn.yes:hover { background: var(--good-bg); border-color: var(--good); }
+  .check-btn.no { border-color: var(--bad-border); color: var(--bad); }
+  .check-btn.no.active, .check-btn.no:hover { background: var(--bad-bg); border-color: var(--bad); }
+
+  /* EMPTY STATE */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text3);
+  }
+  .empty-state .emoji { font-size: 40px; margin-bottom: 12px; }
+  .empty-state p { font-size: 15px; }
+  .empty-state small { font-size: 13px; opacity: 0.6; }
+
+  /* MODAL */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    width: 100%;
+    max-width: 440px;
+    margin: 20px;
+  }
+  .modal h3 {
+    font-family: var(--font);
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 20px;
+  }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px; }
+  .form-group input[type="text"],
+  .form-group textarea,
+  .form-group select {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus,
+  .form-group textarea:focus,
+  .form-group select:focus { border-color: var(--accent); }
+  .form-group select option { background: #1e2026; }
+  .form-group textarea { resize: vertical; min-height: 70px; }
+
+  .type-toggle {
+    display: flex;
+    gap: 8px;
+  }
+  .type-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: var(--bg3);
+    color: var(--text2);
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .type-btn.good.active { border-color: var(--good); background: var(--good-bg); color: var(--good); }
+  .type-btn.bad.active { border-color: var(--bad); background: var(--bad-bg); color: var(--bad); }
+  .type-btn:not(.active):hover { border-color: var(--border2); color: var(--text); }
+
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+
+  /* HABITS MANAGE VIEW */
+  .habits-manage-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .habits-manage-header h2 { font-family: var(--font); font-size: 22px; font-weight: 700; }
+
+  .manage-habit-item {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 8px;
+    transition: border-color 0.15s;
+  }
+  .manage-habit-item:hover { border-color: var(--border2); }
+  .habit-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .habit-badge.good { background: var(--good-bg); color: var(--good); border: 1px solid var(--good-border); }
+  .habit-badge.bad { background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad-border); }
+  .manage-habit-info { flex: 1; }
+  .manage-habit-info .name { font-weight: 500; font-size: 14px; }
+  .manage-habit-info .desc { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+  /* PROGRESS VIEW */
+  .progress-header { margin-bottom: 28px; }
+  .progress-header h2 { font-family: var(--font); font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .progress-header p { color: var(--text2); font-size: 13px; }
+
+  .chart-controls { display: flex; gap: 8px; margin-bottom: 20px; }
+  .period-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .period-btn.active { background: var(--accent-bg); border-color: rgba(167,139,250,0.4); color: var(--accent); }
+
+  .chart-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .chart-card h3 { font-size: 14px; font-weight: 500; color: var(--text2); margin-bottom: 16px; }
+
+  .habit-progress-item {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-bottom: 8px;
+  }
+  .habit-progress-item .progress-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .habit-progress-item .prog-name { flex: 1; font-weight: 500; font-size: 14px; }
+  .habit-progress-item .prog-pct {
+    font-family: 'Martian Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .progress-bar-wrap { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+
+  /* IMPORT/EXPORT */
+  .data-section { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+
+  /* CALENDAR HEATMAP */
+  .heatmap-wrap { overflow-x: auto; padding-bottom: 4px; }
+  .heatmap { display: flex; gap: 3px; }
+  .heatmap-col { display: flex; flex-direction: column; gap: 3px; }
+  .heatmap-cell {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--bg3);
+    position: relative;
+    cursor: default;
+  }
+  .heatmap-cell.lvl1 { background: rgba(167,139,250,0.2); }
+  .heatmap-cell.lvl2 { background: rgba(167,139,250,0.45); }
+  .heatmap-cell.lvl3 { background: rgba(167,139,250,0.7); }
+  .heatmap-cell.lvl4 { background: rgba(167,139,250,1); }
+  .heatmap-month-labels { display: flex; gap: 3px; margin-bottom: 4px; }
+  .heatmap-month-label { font-size: 10px; color: var(--text3); font-family: 'Martian Mono', monospace; }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 14px;
+    color: var(--text);
+    z-index: 999;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.25s;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* FILE INPUT */
+  #file-input { display: none; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+  /* ── RESPONSIVE ─────────────────────────────────────────── */
+
+  /* Tablet (≤768px) */
+  @media (max-width: 768px) {
+    main { padding: 20px 20px; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .chart-card { padding: 16px; }
+  }
+
+  /* Mobile (≤600px) */
+  @media (max-width: 600px) {
+
+    /* ── Header ── */
+    header {
+      padding: 10px 14px 0;
+    }
+    .header-inner {
+      flex-wrap: wrap;
+      row-gap: 8px;
+    }
+    .logo { font-size: 15px; flex-shrink: 0; }
+    /* date sits on same row as logo, pushed to the right */
+    .header-inner > .date-display {
+      margin-left: auto;
+      font-size: 10px;
+      padding: 4px 9px;
+    }
+    /* buttons take full second row as a 3-col grid */
+    .header-actions {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+    }
+    .header-actions button {
+      width: 100%;
+      padding: 7px 4px;
+      font-size: 11px;
+      text-align: center;
+      justify-content: center;
+    }
+    .header-actions input[type="file"] { display: none; }
+
+    /* ── Tabs ── */
+    .tabs {
+      padding: 0 4px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab {
+      flex: 1;
+      min-width: max-content;
+      padding: 11px 14px;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    /* ── Main ── */
+    main { padding: 16px 14px; }
+
+    /* ── Today header ── */
+    .today-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .today-header-left h2 { font-size: 22px; }
+    .today-header-left p { font-size: 13px; }
+
+    /* ── Date nav ── */
+    .date-nav {
+      width: 100%;
+      justify-content: space-between;
+    }
+    .date-nav input[type="date"] {
+      flex: 1;
+      font-size: 12px;
+      padding: 7px 10px;
+      min-width: 0;
+    }
+
+    /* ── Stats row ── */
+    .stats-row {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .stat-card { padding: 12px 14px; }
+    .stat-card .stat-val { font-size: 22px; }
+    .stat-card .stat-label { font-size: 11px; margin-top: 4px; }
+
+    /* ── Habit items ── */
+    .habit-item {
+      padding: 13px 14px;
+      gap: 11px;
+      border-radius: 12px;
+    }
+    .habit-info .name { font-size: 14px; }
+    .habit-info .meta { font-size: 11px; }
+    .habit-streak { font-size: 11px; padding: 2px 7px; }
+    .check-btn { width: 34px; height: 34px; font-size: 16px; border-radius: 8px; }
+
+    /* ── Manage habits ── */
+    .habits-manage-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .habits-manage-header h2 { font-size: 20px; }
+    .habits-manage-header .btn-accent { width: 100%; text-align: center; padding: 10px; }
+    .manage-habit-item { padding: 13px 14px; gap: 10px; border-radius: 12px; }
+    .manage-habit-info .name { font-size: 13px; }
+
+    /* ── Progress ── */
+    .progress-header { margin-bottom: 16px; }
+    .progress-header h2 { font-size: 20px; }
+    .chart-controls { flex-wrap: wrap; gap: 6px; }
+    .period-btn { flex: 1; min-width: 60px; text-align: center; }
+    .chart-card { padding: 14px 12px; margin-bottom: 12px; border-radius: 12px; }
+    .chart-card h3 { font-size: 13px; margin-bottom: 12px; }
+    .habit-progress-item { padding: 12px 14px; }
+    .habit-progress-item .prog-name { font-size: 13px; }
+
+    /* ── Modals ── */
+    .modal {
+      margin: 12px;
+      padding: 22px 18px;
+      border-radius: 14px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal h3 { font-size: 18px; margin-bottom: 16px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { font-size: 12px; }
+    .form-group input[type="text"],
+    .form-group textarea,
+    .form-group select { font-size: 15px; padding: 10px 12px; }
+    .modal-actions { gap: 8px; }
+    .modal-actions button { flex: 1; text-align: center; }
+    /* Sync modal specifics */
+    #sync-modal-backdrop .modal { max-width: 100%; }
+    .sync-info-box { font-size: 11px; padding: 10px 12px; }
+
+    /* ── Lock screen ── */
+    .lock-box { padding: 32px 22px; border-radius: 16px; margin: 0 14px; }
+
+    /* ── Heatmap ── */
+    .heatmap-cell { width: 10px; height: 10px; }
+
+    /* ── Toast ── */
+    .toast { bottom: 16px; right: 16px; left: 16px; right: 16px; text-align: center; font-size: 13px; }
+
+    /* ── Data section ── */
+    .data-section { flex-direction: column; }
+    .data-section button { width: 100%; }
+  }
+
+  /* Very small phones (≤380px) */
+  @media (max-width: 380px) {
+    .stat-card .stat-val { font-size: 20px; }
+    .date-nav input[type="date"] { font-size: 11px; }
+    .header-actions { grid-template-columns: repeat(3, 1fr); }
+    .header-actions button { font-size: 11px; padding: 7px 2px; }
+  }
+
+  /* LOCK SCREEN */
+  #lock-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #lock-screen.hidden { display: none; }
+  .lock-box {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+  }
+  .lock-icon { font-size: 36px; margin-bottom: 16px; display: block; }
+  .lock-box h2 {
+    font-family: var(--font);
+    font-size: 20px; font-weight: 700; margin-bottom: 6px;
+  }
+  .lock-box p { font-size: 13px; color: var(--text3); margin-bottom: 24px; }
+  .lock-input {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 15px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    outline: none;
+    text-align: center;
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+    transition: border-color 0.15s;
+  }
+  .lock-input:focus { border-color: var(--accent); }
+  .lock-input.error { border-color: var(--bad); animation: shake 0.3s; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+  .lock-btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--frost);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px; font-weight: 700;
+    border: none; cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .lock-btn:hover { opacity: 0.88; }
+  .lock-error { font-size: 13px; color: var(--bad); margin-top: 10px; min-height: 18px; }
+  .btn-lock { background: var(--bg3); border: 1px solid var(--border); color: var(--text2); padding: 6px 12px; border-radius: 8px; font-size: 12px; }
+  .btn-lock:hover { color: var(--text); border-color: var(--border2); }
+
+  /* CHANGE PW MODAL */
+  #pw-modal-backdrop {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 300;
+    backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  #pw-modal-backdrop.open { display: flex; }
+
+  /* SYNC MODAL */
+  #sync-modal-backdrop {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 300;
+    backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  #sync-modal-backdrop.open { display: flex; }
+  .sync-status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block; margin-right: 6px; vertical-align: middle;
+  }
+  .sync-status-dot.connected { background: var(--good); }
+  .sync-status-dot.disconnected { background: var(--text3); }
+  .sync-status-dot.syncing { background: #fbbf24; animation: pulse 1s infinite; }
+  .sync-status-dot.error { background: var(--bad); }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+  .btn-sync {
+    background: var(--bg3); border: 1px solid var(--border);
+    color: var(--text2); padding: 6px 12px; border-radius: 8px; font-size: 12px;
+  }
+  .btn-sync:hover { color: var(--text); border-color: var(--border2); }
+  .btn-sync.active { border-color: rgba(163,190,140,0.4); color: var(--good); background: var(--good-bg); }
+  .sync-info-box {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; font-size: 12px;
+    color: var(--text3); line-height: 1.6; margin-top: 4px;
+  }
+  .sync-info-box a { color: var(--accent); text-decoration: none; }
+  .sync-info-box a:hover { text-decoration: underline; }
+  .sync-last { font-size: 12px; color: var(--text3); margin-top: 8px; font-family: var(--font); }
+
+  /* CUSTOM CONFIRM MODAL */
+  #confirm-modal-backdrop {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75); z-index: 400;
+    backdrop-filter: blur(6px);
+    align-items: center; justify-content: center;
+  }
+  #confirm-modal-backdrop.open { display: flex; }
+  .confirm-modal {
+    background: var(--bg2);
+    border: 1px solid var(--bad-border);
+    border-radius: var(--radius-lg);
+    padding: 28px 28px 24px;
+    width: 100%;
+    max-width: 380px;
+    margin: 20px;
+    text-align: center;
+  }
+  .confirm-modal .confirm-icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+    display: block;
+    color: var(--bad);
+  }
+  .confirm-modal h3 {
+    font-family: var(--font);
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .confirm-modal p {
+    font-size: 12px;
+    color: var(--text3);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+  .confirm-modal .confirm-habit-name {
+    color: var(--text2);
+    font-weight: 600;
+    background: var(--bg3);
+    padding: 6px 12px;
+    border-radius: 6px;
+    display: inline-block;
+    margin-bottom: 20px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+  .confirm-actions { display: flex; gap: 10px; justify-content: center; }
+  .confirm-actions .btn-cancel {
+    flex: 1;
+    padding: 9px 16px;
+    border-radius: 7px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .confirm-actions .btn-cancel:hover { color: var(--text); border-color: var(--border2); }
+  .confirm-actions .btn-confirm-delete {
+    flex: 1;
+    padding: 9px 16px;
+    border-radius: 7px;
+    background: var(--bad-bg);
+    border: 1px solid var(--bad-border);
+    color: var(--bad);
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .confirm-actions .btn-confirm-delete:hover { background: rgba(191,97,106,0.25); }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <svg class="logo-svg" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="18" height="18" rx="4" fill="#5e81ac" opacity="0.25"/>
+        <path d="M4.5 9.5L7.5 12.5L13.5 6" stroke="#88c0d0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      habit tracker
+    </div>
+    <span class="date-display" id="header-date"></span>
+    <div class="header-actions">
+      <button class="btn-sync btn-sm" id="sync-btn" onclick="openSyncModal()">⟳ Sync</button>
+      <button class="btn btn-sm" id="header-pull-btn" onclick="syncPull()" style="display:none;">↓ Pull</button>
+      <button class="btn-accent btn-sm" id="header-push-btn" onclick="syncPush()" style="display:none;">↑ Push</button>
+      <button class="btn-lock btn-sm" onclick="openPwModal()">⚿ Password</button>
+      <button class="btn btn-sm" onclick="exportData()">↑ Export</button>
+      <button class="btn btn-sm" onclick="document.getElementById('file-input').click()">↓ Import</button>
+      <input type="file" id="file-input" accept=".json" onchange="importData(event)">
+    </div>
+  </div>
+  <div class="tabs-wrap">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('today', this)">Log</button>
+      <button class="tab" onclick="switchTab('progress', this)">Progress</button>
+      <button class="tab" onclick="switchTab('habits', this)">Manage Habits</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- TODAY SECTION -->
+  <div class="section active" id="section-today">
+    <div class="today-header">
+      <div class="today-header-left">
+        <h2 id="today-title">Today</h2>
+        <p id="today-subtitle"></p>
+      </div>
+      <div class="date-nav">
+        <button class="btn btn-sm" onclick="changeDay(-1)">←</button>
+        <input type="date" id="date-picker" onchange="onDateChange()">
+        <button class="btn btn-sm" onclick="changeDay(1)">→</button>
+        <button class="btn btn-sm btn-ghost" onclick="goToday()">Today</button>
+      </div>
+    </div>
+
+    <div class="stats-row" id="stats-row"></div>
+
+    <div id="today-habits-wrap"></div>
+  </div>
+
+  <!-- PROGRESS SECTION -->
+  <div class="section" id="section-progress">
+    <div class="progress-header">
+      <h2>Progress</h2>
+      <p>Your habit completion over time</p>
+    </div>
+
+    <div class="chart-controls">
+      <button class="period-btn active" onclick="setPeriod(7, this)">7 days</button>
+      <button class="period-btn" onclick="setPeriod(30, this)">30 days</button>
+      <button class="period-btn" onclick="setPeriod(90, this)">90 days</button>
+    </div>
+
+    <div class="chart-card">
+      <h3 id="dual-chart-title">Good vs bad habit completion rate</h3>
+      <canvas id="completion-chart" height="100"></canvas>
+    </div>
+
+    <div class="chart-card" id="per-habit-lines-card">
+      <h3>Per-habit — done vs missed</h3>
+      <div id="per-habit-lines"></div>
+    </div>
+  </div>
+
+  <!-- HABITS MANAGE SECTION -->
+  <div class="section" id="section-habits">
+    <div class="habits-manage-header">
+      <h2>Manage Habits</h2>
+      <button class="btn-accent" onclick="openAddModal()">+ Add Habit</button>
+    </div>
+    <div id="manage-habits-list"></div>
+  </div>
+</main>
+
+
+<!-- LOCK SCREEN -->
+<div id="lock-screen" class="hidden">
+  <div class="lock-box">
+    <span class="lock-icon">🔒</span>
+    <h2 id="lock-title">Welcome back</h2>
+    <p id="lock-subtitle">Enter your password to continue</p>
+    <input class="lock-input" type="password" id="lock-pw-input" placeholder="••••••••" maxlength="64" onkeydown="if(event.key==='Enter')submitLock()">
+    <button class="lock-btn" id="lock-btn-label" onclick="submitLock()">Unlock</button>
+    <div class="lock-error" id="lock-error"></div>
+    <div id="lock-setup-note" style="display:none" class="lock-error" style="color:var(--text3)"></div>
+  </div>
+</div>
+
+<!-- CHANGE PASSWORD MODAL -->
+<div id="pw-modal-backdrop" onclick="closePwModal(event)">
+  <div class="modal" style="max-width:400px;">
+    <h3 style="font-family:'Martian Mono',monospace;font-size:18px;font-weight:700;margin-bottom:20px;">Change Password</h3>
+    <div class="form-group">
+      <label>Current password</label>
+      <input type="password" id="pw-current" placeholder="Current password" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:'Martian Mono',monospace;font-size:13px;padding:10px 14px;border-radius:8px;outline:none;">
+    </div>
+    <div class="form-group">
+      <label>New password</label>
+      <input type="password" id="pw-new" placeholder="New password" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:'Martian Mono',monospace;font-size:13px;padding:10px 14px;border-radius:8px;outline:none;">
+    </div>
+    <div class="form-group">
+      <label>Confirm new password</label>
+      <input type="password" id="pw-confirm" placeholder="Confirm new password" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:'Martian Mono',monospace;font-size:13px;padding:10px 14px;border-radius:8px;outline:none;">
+    </div>
+    <div class="lock-error" id="pw-change-error"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closePwModal()">Cancel</button>
+      <button class="btn-accent" onclick="doChangePassword()">Update Password</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD HABIT MODAL -->
+<div class="modal-backdrop" id="add-modal" onclick="closeModal(event)">
+  <div class="modal">
+    <h3>Add Habit</h3>
+    <div class="form-group">
+      <label>Habit name</label>
+      <input type="text" id="habit-name" placeholder="e.g. Morning run" maxlength="60">
+    </div>
+    <div class="form-group">
+      <label>Description (optional)</label>
+      <textarea id="habit-desc" placeholder="Why this habit matters..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Type</label>
+      <div class="type-toggle">
+        <button class="type-btn good active" id="type-good" onclick="selectType('good')">✓ Good habit</button>
+        <button class="type-btn bad" id="type-bad" onclick="selectType('bad')">✗ Bad habit</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAddModal()">Cancel</button>
+      <button class="btn-accent" onclick="saveHabit()">Save Habit</button>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOM CONFIRM DELETE MODAL -->
+<div id="confirm-modal-backdrop" onclick="closeConfirmModal(event)">
+  <div class="confirm-modal">
+    <span class="confirm-icon">⚠</span>
+    <h3>Delete Habit?</h3>
+    <div class="confirm-habit-name" id="confirm-habit-name"></div>
+    <p>All logged data for this habit will be permanently removed. This cannot be undone.</p>
+    <div class="confirm-actions">
+      <button class="btn-cancel" onclick="closeConfirmModal()">Cancel</button>
+      <button class="btn-confirm-delete" id="confirm-delete-btn">✕ Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- SYNC MODAL -->
+<div id="sync-modal-backdrop" onclick="closeSyncModal(event)">
+  <div class="modal" style="max-width:460px;">
+    <h3 style="font-family:'Martian Mono',monospace;font-size:17px;font-weight:700;margin-bottom:6px;">⟳ GitHub Gist Sync</h3>
+    <p style="font-size:13px;color:var(--text3);margin-bottom:20px;">Your data is saved as a private Gist and synced across devices.</p>
+
+    <div class="form-group">
+      <label>Personal Access Token
+        <span style="color:var(--text3);font-weight:400;"> — stored only in this browser</span>
+      </label>
+      <input type="password" id="sync-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:'Martian Mono',monospace;font-size:13px;padding:10px 14px;border-radius:8px;outline:none;transition:border-color 0.15s;"
+        oninput="onSyncTokenInput()">
+    </div>
+
+    <div class="sync-info-box">
+      To get a token: go to <a href="https://github.com/settings/tokens/new" target="_blank">github.com/settings/tokens/new</a>,
+      give it a name like "habit-tracker", set expiry as you like, and check only the <strong style="color:var(--text2);">gist</strong> scope. Paste the token above.
+    </div>
+
+    <div id="sync-gist-row" style="display:none;margin-top:16px;" class="form-group">
+      <label>Gist ID <span style="color:var(--text3);font-weight:400;">— leave blank to create a new one</span></label>
+      <input type="text" id="sync-gist-id" placeholder="Auto-created on first push"
+        style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:'Martian Mono',monospace;font-size:13px;padding:10px 14px;border-radius:8px;outline:none;">
+    </div>
+
+    <div id="sync-status-row" style="margin-top:16px;font-size:13px;color:var(--text3);display:none;">
+      <span class="sync-status-dot disconnected" id="sync-dot"></span>
+      <span id="sync-status-text">Not connected</span>
+      <div class="sync-last" id="sync-last-time"></div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:24px;">
+      <button class="btn" onclick="closeSyncModal()">Close</button>
+      <button class="btn-accent" id="sync-save-btn" onclick="saveSyncConfig()">Connect</button>
+    </div>
+
+    <div class="lock-error" id="sync-error" style="margin-top:8px;"></div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ─────────────────────────────────────────────────────────────────
+let habits = [];
+let logs = {};   // { "YYYY-MM-DD": { habitId: "yes"|"no"|null } }
+let deletedHabitIds = [];  // Track deleted habits to prevent re-adding during merge
+let selectedType = 'good';
+let currentDate = todayStr();
+let progressPeriod = 7;
+let completionChart = null;
+
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function loadData() {
+  try {
+    const h = localStorage.getItem('ht_habits');
+    const l = localStorage.getItem('ht_logs');
+    const d = localStorage.getItem('ht_deleted_habit_ids');
+    if (h) habits = JSON.parse(h);
+    if (l) logs = JSON.parse(l);
+    if (d) deletedHabitIds = JSON.parse(d);
+  } catch(e) {}
+}
+
+function saveData() {
+  localStorage.setItem('ht_habits', JSON.stringify(habits));
+  localStorage.setItem('ht_logs', JSON.stringify(logs));
+  localStorage.setItem('ht_deleted_habit_ids', JSON.stringify(deletedHabitIds));
+}
+
+// ─── DATE UTILS ─────────────────────────────────────────────────────────────
+function formatDisplayDate(str) {
+  const d = new Date(str + 'T00:00:00');
+  const today = todayStr();
+  const yesterday = offsetDate(today, -1);
+  if (str === today) return 'Today';
+  if (str === yesterday) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
+}
+
+function offsetDate(str, days) {
+  const d = new Date(str + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getDateRange(endStr, days) {
+  const dates = [];
+  for (let i = days - 1; i >= 0; i--) dates.push(offsetDate(endStr, -i));
+  return dates;
+}
+
+// ─── TABS ───────────────────────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('section-' + name).classList.add('active');
+  if (name === 'progress') renderProgress();
+  if (name === 'habits') renderManageHabits();
+  if (name === 'today') renderToday();
+}
+
+// ─── TODAY ──────────────────────────────────────────────────────────────────
+function renderToday() {
+  document.getElementById('today-title').textContent = formatDisplayDate(currentDate);
+  const d = new Date(currentDate + 'T00:00:00');
+  document.getElementById('today-subtitle').textContent =
+    d.toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  const picker = document.getElementById('date-picker');
+  picker.max = todayStr();
+  picker.value = currentDate;
+
+  renderStats();
+  renderHabitList();
+}
+
+function renderStats() {
+  const dayLog = logs[currentDate] || {};
+  // Only include habits that were created on or before the current date
+  const visibleHabits = habits.filter(h => !h.createdAt || h.createdAt <= currentDate);
+  const total = visibleHabits.length;
+  const goodHabits = visibleHabits.filter(h => h.type === 'good');
+  const badHabits = visibleHabits.filter(h => h.type === 'bad');
+
+  let goodDone = 0, badDone = 0, logged = 0;
+  visibleHabits.forEach(h => {
+    const v = dayLog[h.id];
+    if (v === 'yes') { logged++; if (h.type === 'good') goodDone++; }
+    if (v === 'no') { logged++; if (h.type === 'bad') badDone++; }
+  });
+
+  const pct = total ? Math.round((logged / total) * 100) : 0;
+
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-val">${total}</div>
+      <div class="stat-label">Total habits</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">${pct}%</div>
+      <div class="stat-label">Logged today</div>
+    </div>
+    <div class="stat-card good">
+      <div class="stat-val">${goodDone}/${goodHabits.length}</div>
+      <div class="stat-label">Good habits done</div>
+    </div>
+    <div class="stat-card bad">
+      <div class="stat-val">${badDone}/${badHabits.length}</div>
+      <div class="stat-label">Bad habits done</div>
+    </div>
+  `;
+}
+
+function renderHabitList() {
+  const wrap = document.getElementById('today-habits-wrap');
+  const dayLog = logs[currentDate] || {};
+  // Filter habits that were created on or before the current date
+  const visibleHabits = habits.filter(h => !h.createdAt || h.createdAt <= currentDate);
+  const goodH = visibleHabits.filter(h => h.type === 'good');
+  const badH = visibleHabits.filter(h => h.type === 'bad');
+
+  if (!visibleHabits.length) {
+    wrap.innerHTML = `<div class="empty-state"><div class="emoji">🌱</div><p>No habits yet</p><small>Go to Manage Habits to add your first habit</small></div>`;
+    return;
+  }
+
+  let html = '';
+
+  if (goodH.length) {
+    html += `<div class="habit-section-title">Good habits</div>`;
+    goodH.forEach(h => html += habitItemHTML(h, dayLog[h.id] || null));
+  }
+  if (badH.length) {
+    html += `<div class="habit-section-title">Bad habits to avoid</div>`;
+    badH.forEach(h => html += habitItemHTML(h, dayLog[h.id] || null));
+  }
+
+  wrap.innerHTML = html;
+}
+
+function habitItemHTML(h, val) {
+  const streak = getStreak(h.id, currentDate);
+  const streakHTML = streak >= 3
+    ? `<span class="habit-streak fire">🔥 ${streak}</span>`
+    : streak > 0 ? `<span class="habit-streak">${streak} day streak</span>` : '';
+
+  const statusClass = val === 'yes' ? 'done-yes' : val === 'no' ? 'done-no' : '';
+
+  const yesLabel = h.type === 'good' ? '✓' : '✓';
+  const noLabel = h.type === 'good' ? '✗' : '✗';
+  const yesTitle = h.type === 'good' ? 'Done' : 'Avoided';
+  const noTitle = h.type === 'good' ? 'Missed' : 'Gave in';
+
+  return `
+    <div class="habit-item ${statusClass}" id="hi-${h.id}">
+      <div class="habit-type-dot ${h.type}"></div>
+      <div class="habit-info">
+        <div class="name">${escHtml(h.name)}</div>
+        ${h.desc ? `<div class="meta">${escHtml(h.desc)}</div>` : ''}
+      </div>
+      ${streakHTML}
+      <div class="habit-actions">
+        <button class="check-btn yes ${val === 'yes' ? 'active' : ''}" title="${yesTitle}"
+          onclick="logHabit('${h.id}', 'yes')">${yesLabel}</button>
+        <button class="check-btn no ${val === 'no' ? 'active' : ''}" title="${noTitle}"
+          onclick="logHabit('${h.id}', 'no')">${noLabel}</button>
+      </div>
+    </div>`;
+}
+
+function logHabit(id, val) {
+  if (!logs[currentDate]) logs[currentDate] = {};
+  const current = logs[currentDate][id];
+  logs[currentDate][id] = current === val ? null : val;
+  saveData();
+  renderToday();
+  showToast(val === 'yes' ? '✓ Logged!' : '✗ Logged!');
+}
+
+function getStreak(habitId, fromDate) {
+  let streak = 0;
+  let d = fromDate;
+  for (let i = 0; i < 365; i++) {
+    const dayLog = logs[d] || {};
+    if (dayLog[habitId] === 'yes') streak++;
+    else if (dayLog[habitId] === 'no') break;
+    else if (d < fromDate) break;
+    d = offsetDate(d, -1);
+    if (i > 0 && d >= fromDate) break;
+    if (i === 0) d = offsetDate(fromDate, -1);
+  }
+  // simple streak: consecutive days with 'yes'
+  streak = 0;
+  const habitObj = habits.find(x => x.id === habitId);
+  let check = offsetDate(fromDate, 0);
+  for (let i = 0; i < 365; i++) {
+    const v = (logs[check] || {})[habitId];
+    if (v === 'yes') { streak++; check = offsetDate(check, -1); }
+    else break;
+  }
+  return streak;
+}
+
+function changeDay(n) {
+  const next = offsetDate(currentDate, n);
+  if (next > todayStr()) return;
+  currentDate = next;
+  renderToday();
+}
+
+function goToday() {
+  currentDate = todayStr();
+  renderToday();
+}
+
+function onDateChange() {
+  const val = document.getElementById('date-picker').value;
+  if (val > todayStr()) return;
+  currentDate = val;
+  renderToday();
+}
+
+// ─── MANAGE HABITS ──────────────────────────────────────────────────────────
+function renderManageHabits() {
+  const list = document.getElementById('manage-habits-list');
+  if (!habits.length) {
+    list.innerHTML = `<div class="empty-state"><div class="emoji">📋</div><p>No habits yet</p><small>Click "Add Habit" to get started</small></div>`;
+    return;
+  }
+  list.innerHTML = habits.map(h => `
+    <div class="manage-habit-item">
+      <span class="habit-badge ${h.type}">${h.type}</span>
+      <div class="manage-habit-info">
+        <div class="name">${escHtml(h.name)}</div>
+        ${h.desc ? `<div class="desc">${escHtml(h.desc)}</div>` : ''}
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="deleteHabit('${h.id}')">Delete</button>
+    </div>
+  `).join('');
+}
+
+function deleteHabit(id) {
+  const habit = habits.find(h => h.id === id);
+  if (!habit) return;
+  document.getElementById('confirm-habit-name').textContent = habit.name;
+  document.getElementById('confirm-modal-backdrop').classList.add('open');
+  const btn = document.getElementById('confirm-delete-btn');
+  btn.onclick = () => {
+    habits = habits.filter(h => h.id !== id);
+    for (const date in logs) delete logs[date][id];
+    // Track this deletion so it persists across syncs
+    if (!deletedHabitIds.includes(id)) {
+      deletedHabitIds.push(id);
+    }
+    saveData();
+    renderManageHabits();
+    closeConfirmModal();
+    showToast('Habit deleted');
+  };
+}
+
+function closeConfirmModal(e) {
+  if (!e || e.target.id === 'confirm-modal-backdrop')
+    document.getElementById('confirm-modal-backdrop').classList.remove('open');
+}
+
+// ─── ADD HABIT MODAL ─────────────────────────────────────────────────────────
+function openAddModal() {
+  document.getElementById('habit-name').value = '';
+  document.getElementById('habit-desc').value = '';
+  selectType('good');
+  document.getElementById('add-modal').classList.add('open');
+  setTimeout(() => document.getElementById('habit-name').focus(), 100);
+}
+
+function closeAddModal() {
+  document.getElementById('add-modal').classList.remove('open');
+}
+
+function closeModal(e) {
+  if (e.target.id === 'add-modal') closeAddModal();
+}
+
+function selectType(t) {
+  selectedType = t;
+  document.getElementById('type-good').classList.toggle('active', t === 'good');
+  document.getElementById('type-bad').classList.toggle('active', t === 'bad');
+}
+
+function saveHabit() {
+  const name = document.getElementById('habit-name').value.trim();
+  if (!name) { showToast('Please enter a name'); return; }
+  habits.push({
+    id: 'h' + Date.now(),
+    name,
+    desc: document.getElementById('habit-desc').value.trim(),
+    type: selectedType,
+    createdAt: todayStr()
+  });
+  saveData();
+  closeAddModal();
+  renderManageHabits();
+  renderToday();
+  showToast('Habit added!');
+}
+
+// ─── PROGRESS ───────────────────────────────────────────────────────────────
+function setPeriod(days, el) {
+  progressPeriod = days;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderProgress();
+}
+
+function renderProgress() {
+  renderCompletionChart();
+  renderPerHabitLines();
+}
+
+function getCompletionForDate(dateStr) {
+  const dayLog = logs[dateStr] || {};
+  // Only include habits that were created on or before this date
+  const relevantHabits = habits.filter(h => !h.createdAt || h.createdAt <= dateStr);
+  const total = relevantHabits.length;
+  if (!total) return 0;
+  const logged = relevantHabits.filter(h => dayLog[h.id] === 'yes' || dayLog[h.id] === 'no').length;
+  return Math.round((logged / total) * 100);
+}
+
+function getCompletionForDateByType(dateStr, type) {
+  const dayLog = logs[dateStr] || {};
+  // Only include habits that were created on or before this date
+  const group = habits.filter(h => h.type === type && (!h.createdAt || h.createdAt <= dateStr));
+  if (!group.length) return null;
+  const logged = group.filter(h => dayLog[h.id] === 'yes' || dayLog[h.id] === 'no').length;
+  if (!logged) return null; // nothing marked — skip this day entirely
+  if (type === 'good') {
+    // only count marked habits; unmarked ones are ignored
+    const done = group.filter(h => dayLog[h.id] === 'yes').length;
+    return Math.round((done / logged) * 100);
+  } else {
+    // bad: 'no' = gave in, 'yes' = avoided
+    const gaveIn = group.filter(h => dayLog[h.id] === 'no').length;
+    return Math.round((gaveIn / logged) * 100);
+  }
+}
+
+function avg(arr) {
+  const vals = arr.filter(v => v !== null);
+  return vals.length ? Math.round(vals.reduce((a,b) => a+b, 0) / vals.length) : null;
+}
+
+function renderCompletionChart() {
+  const dates = getDateRange(todayStr(), progressPeriod);
+  const labels = dates.map(d => {
+    const dt = new Date(d + 'T00:00:00');
+    return dt.toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  });
+  const goodData = dates.map(d => getCompletionForDateByType(d, 'good'));
+  const badData  = dates.map(d => getCompletionForDateByType(d, 'bad'));
+  const goodAvg  = avg(goodData);
+  const badAvg   = avg(badData);
+  const pr = progressPeriod <= 30 ? 4 : 2;
+
+  // Update summary stats above chart
+  const goodHabits = habits.filter(h => h.type === 'good');
+  const badHabits  = habits.filter(h => h.type === 'bad');
+  const titleEl = document.getElementById('dual-chart-title');
+  if (titleEl) {
+    let summary = '';
+    if (goodAvg !== null) summary += `<span style="color:#3ecf8e;font-weight:600;">${goodAvg}% avg good</span>`;
+    if (goodAvg !== null && badAvg !== null) summary += ' &nbsp;·&nbsp; ';
+    if (badAvg !== null) summary += `<span style="color:#f56565;font-weight:600;">${badAvg}% avg bad gave in</span>`;
+    titleEl.innerHTML = 'Completion rate &nbsp;<span style="font-size:12px;color:var(--text3);font-weight:400;">' + summary + '</span>';
+  }
+
+  const ctx = document.getElementById('completion-chart').getContext('2d');
+  if (completionChart) completionChart.destroy();
+
+  const datasets = [];
+  if (goodHabits.length) {
+    datasets.push({
+      label: 'Good habits done',
+      data: goodData,
+      borderColor: '#3ecf8e',
+      backgroundColor: 'rgba(62,207,142,0.07)',
+      borderWidth: 2.5, fill: true, tension: 0.4,
+      pointBackgroundColor: '#3ecf8e',
+      pointBorderColor: '#0e0f11',
+      pointBorderWidth: 1.5,
+      pointRadius: pr, pointHoverRadius: 7,
+      spanGaps: true
+    });
+    if (goodAvg !== null) datasets.push({
+      label: 'Avg good',
+      data: dates.map(() => goodAvg),
+      borderColor: 'rgba(62,207,142,0.35)',
+      borderWidth: 1.5,
+      borderDash: [4, 4],
+      pointRadius: 0,
+      fill: false,
+      tension: 0,
+      spanGaps: true
+    });
+  }
+  if (badHabits.length) {
+    datasets.push({
+      label: 'Bad habits — gave in',
+      data: badData,
+      borderColor: '#f56565',
+      backgroundColor: 'rgba(245,101,101,0.05)',
+      borderWidth: 2.5, fill: true, tension: 0.4,
+      pointBackgroundColor: '#f56565',
+      pointBorderColor: '#0e0f11',
+      pointBorderWidth: 1.5,
+      pointRadius: pr, pointHoverRadius: 7,
+      spanGaps: true
+    });
+    if (badAvg !== null) datasets.push({
+      label: 'Avg bad',
+      data: dates.map(() => badAvg),
+      borderColor: 'rgba(245,101,101,0.35)',
+      borderWidth: 1.5,
+      borderDash: [4, 4],
+      pointRadius: 0,
+      fill: false,
+      tension: 0,
+      spanGaps: true
+    });
+  }
+
+  completionChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#9b9791', font: { size: 12 }, boxWidth: 10, boxHeight: 10,
+            filter: item => !item.text.startsWith('Avg')
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.label.startsWith('Avg')) return null;
+              const v = ctx.parsed.y;
+              const isGood = ctx.dataset.label.includes('Good');
+              const isBad  = ctx.dataset.label.includes('Bad');
+              const dateStr = dates[ctx.dataIndex];
+              const dayLog = logs[dateStr] || {};
+              let note = '';
+              if (isGood) {
+                const g = habits.filter(h => h.type === 'good');
+                const loggedG = g.filter(h => dayLog[h.id] === 'yes' || dayLog[h.id] === 'no').length;
+                const doneG   = g.filter(h => dayLog[h.id] === 'yes').length;
+                note = loggedG ? ` (${doneG}/${loggedG} logged)` : '';
+              } else if (isBad) {
+                const b = habits.filter(h => h.type === 'bad');
+                const loggedB  = b.filter(h => dayLog[h.id] === 'yes' || dayLog[h.id] === 'no').length;
+                const gaveInB  = b.filter(h => dayLog[h.id] === 'no').length;
+                const avoidedB = b.filter(h => dayLog[h.id] === 'yes').length;
+                note = loggedB ? ` (${gaveInB} gave in, ${avoidedB} avoided / ${loggedB} logged)` : '';
+              }
+              return ' ' + ctx.dataset.label + ': ' + (v !== null ? v + '%' + note : '—');
+            },
+            afterBody: (items) => {
+              const dateStr = dates[items[0].dataIndex];
+              const dayLog = logs[dateStr] || {};
+              const lines = [];
+              habits.forEach(h => {
+                const v = dayLog[h.id];
+                if (!v) return;
+                const icon = (h.type === 'good' && v === 'yes') ? '✓' :
+                             (h.type === 'good' && v === 'no')  ? '✗' :
+                             (h.type === 'bad'  && v === 'yes') ? '✓' : '⚠';
+                lines.push('  ' + icon + ' ' + h.name);
+              });
+              return lines.length ? ['', 'Habits:'].concat(lines) : [];
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          min: 0, max: 100,
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: '#5c5a57', callback: v => v + '%', stepSize: 25 }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: '#5c5a57', maxRotation: 0, maxTicksLimit: 10 }
+        }
+      }
+    }
+  });
+}
+
+function renderPerHabitLines() {
+  const wrap = document.getElementById('per-habit-lines');
+  if (!habits.length) {
+    wrap.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:8px 0;">No habits yet.</div>';
+    return;
+  }
+  const dates = getDateRange(todayStr(), progressPeriod);
+  const total = dates.length;
+
+  wrap.innerHTML = habits.map(function(h) {
+    // Filter dates to only include those from when the habit was created onwards
+    const habitDates = dates.filter(d => !h.createdAt || d >= h.createdAt);
+    const habitTotal = habitDates.length;
+    const done     = habitDates.filter(function(d) { return (logs[d] || {})[h.id] === 'yes'; }).length;
+    const missed   = habitDates.filter(function(d) { return (logs[d] || {})[h.id] === 'no'; }).length;
+    const unlogged = habitTotal - done - missed;
+    const logged2   = done + missed;
+    const donePct   = logged2 ? Math.round((done / logged2) * 100) : 0;
+    const missedPct = logged2 ? Math.round((missed / logged2) * 100) : 0;
+    const unlogPct  = 100 - donePct - missedPct;
+
+    const isGood      = h.type === 'good';
+    const doneLabel   = isGood ? 'Done' : 'Avoided';
+    const missedLabel = isGood ? 'Missed' : 'Did it';
+    const doneColor   = '#3ecf8e';
+    const missedColor = '#f56565';
+
+    let streak = 0;
+    let check = todayStr();
+    for (let i = 0; i < 365; i++) {
+      const v = (logs[check] || {})[h.id];
+      if (v === 'yes') { streak++; check = offsetDate(check, -1); }
+      else break;
+    }
+
+    const streakHTML = streak >= 2
+      ? '<span style="font-size:12px;color:#fbbf24;background:rgba(251,191,36,0.1);padding:2px 8px;border-radius:6px;">&#128293; ' + streak + ' streak</span>'
+      : '';
+
+    return '<div class="habit-progress-item">'
+      + '<div class="progress-top">'
+      + '<span class="habit-badge ' + h.type + '">' + h.type + '</span>'
+      + '<span class="prog-name">' + escHtml(h.name) + '</span>'
+      + streakHTML
+      + '</div>'
+      + '<div style="display:flex;gap:3px;height:8px;border-radius:4px;overflow:hidden;margin-bottom:8px;">'
+      + '<div style="width:' + donePct + '%;background:' + doneColor + ';transition:width 0.4s;"></div>'
+      + '<div style="width:' + missedPct + '%;background:' + missedColor + ';opacity:0.5;transition:width 0.4s;"></div>'
+      + '<div style="width:' + unlogPct + '%;background:var(--bg3);"></div>'
+      + '</div>'
+      + '<div style="display:flex;gap:16px;font-size:12px;color:var(--text3);flex-wrap:wrap;">'
+      + '<span style="color:' + doneColor + ';font-weight:500;">' + doneLabel + ': ' + done + 'd (' + donePct + '%)</span>'
+      + '<span style="color:' + missedColor + ';opacity:0.85;">' + missedLabel + ': ' + missed + 'd (' + missedPct + '%)</span>'
+      + '<span>Unlogged: ' + unlogged + 'd</span>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+
+// ─── GITHUB GIST SYNC ────────────────────────────────────────────────────────
+const GIST_FILENAME = 'habitOS-data.json';
+
+function getSyncConfig() {
+  return {
+    token: localStorage.getItem('ht_sync_token') || '',
+    gistId: localStorage.getItem('ht_sync_gist_id') || '',
+    lastSync: localStorage.getItem('ht_sync_last') || ''
+  };
+}
+
+function isSyncConnected() {
+  return !!getSyncConfig().token;
+}
+
+function updateSyncBtn() {
+  const btn = document.getElementById('sync-btn');
+  const pullBtn = document.getElementById('header-pull-btn');
+  const pushBtn = document.getElementById('header-push-btn');
+  if (!btn) return;
+  const cfg = getSyncConfig();
+  btn.classList.toggle('active', !!cfg.token);
+  const showTransfer = !!(cfg.token && cfg.gistId);
+  if (pullBtn) pullBtn.style.display = showTransfer ? 'inline-flex' : 'none';
+  if (pushBtn) pushBtn.style.display = cfg.token ? 'inline-flex' : 'none';
+}
+
+function openSyncModal() {
+  const cfg = getSyncConfig();
+  document.getElementById('sync-token').value = cfg.token ? '••••••••••••••••••••' : '';
+  document.getElementById('sync-gist-id').value = cfg.gistId || '';
+  document.getElementById('sync-error').textContent = '';
+  updateSyncModalState(!!cfg.token);
+  document.getElementById('sync-modal-backdrop').classList.add('open');
+}
+
+function closeSyncModal(e) {
+  if (!e || e.target.id === 'sync-modal-backdrop')
+    document.getElementById('sync-modal-backdrop').classList.remove('open');
+}
+
+function onSyncTokenInput() {
+  const input = document.getElementById('sync-token');
+  if (input.value === '••••••••••••••••••••') input.value = '';
+  updateSyncModalState(false);
+}
+
+function updateSyncModalState(connected) {
+  const cfg = getSyncConfig();
+  document.getElementById('sync-gist-row').style.display = 'block';
+  document.getElementById('sync-status-row').style.display = connected ? 'block' : 'none';
+  document.getElementById('sync-save-btn').textContent = connected ? 'Update' : 'Connect';
+
+  if (connected) {
+    const dot = document.getElementById('sync-dot');
+    const txt = document.getElementById('sync-status-text');
+    dot.className = 'sync-status-dot connected';
+    txt.textContent = cfg.gistId ? 'Connected — Gist: ' + cfg.gistId.slice(0, 10) + '…' : 'Connected — add Gist ID then Push to create one';
+    const last = document.getElementById('sync-last-time');
+    last.textContent = cfg.lastSync ? 'Last synced: ' + new Date(cfg.lastSync).toLocaleString() : '';
+  }
+}
+
+// Merge remote data into local.
+// Remote habits are the source of truth (so deletions propagate on pull).
+// Local-only habits (created on this device since the last push) are preserved.
+// Remote wins on log-entry conflicts (same habit same day).
+function mergeRemoteIntoLocal(remote) {
+  const remoteHabits = remote.habits || [];
+  const remoteDeletedIds = remote.deletedHabitIds || [];
+
+  // Habits: use remote as the base, then append any local-only habits
+  // (created on this device since the last push) so they aren't wiped.
+  // But exclude habits that have been deleted on any device.
+  const remoteIds = new Set(remoteHabits.map(h => h.id));
+  const deletedSet = new Set([...deletedHabitIds, ...remoteDeletedIds]);
+  const localOnlyHabits = habits.filter(h => !remoteIds.has(h.id) && !deletedSet.has(h.id));
+  habits = [...remoteHabits, ...localOnlyHabits];
+
+  // Merge logs: remote wins if both sides have an entry for the same day/habit
+  const remoteLogs = remote.logs || {};
+  for (const date of Object.keys(remoteLogs)) {
+    if (!logs[date]) logs[date] = {};
+    for (const habitId of Object.keys(remoteLogs[date])) {
+      logs[date][habitId] = remoteLogs[date][habitId];
+    }
+  }
+
+  // Clean up log entries for habits that no longer exist
+  const allIds = new Set(habits.map(h => h.id));
+  for (const date in logs) {
+    for (const id in logs[date]) {
+      if (!allIds.has(id)) delete logs[date][id];
+    }
+  }
+
+  // Merge deleted habit tracking
+  for (const id of remoteDeletedIds) {
+    if (!deletedHabitIds.includes(id)) {
+      deletedHabitIds.push(id);
+    }
+  }
+}
+
+async function saveSyncConfig() {
+  const tokenInput = document.getElementById('sync-token');
+  const gistInput = document.getElementById('sync-gist-id');
+  const errEl = document.getElementById('sync-error');
+  errEl.textContent = '';
+
+  let token = tokenInput.value.trim();
+  if (token === '••••••••••••••••••••' || token === '') token = getSyncConfig().token;
+  if (!token) { errEl.textContent = 'Please enter a GitHub token.'; return; }
+  if (!token.startsWith('ghp_') && !token.startsWith('github_pat_') && !token.startsWith('gho_')) {
+    errEl.textContent = 'Token should start with ghp_, github_pat_, or gho_';
+    return;
+  }
+
+  setSyncDotState('syncing', 'Verifying token…');
+  try {
+    const res = await fetch('https://api.github.com/user', {
+      headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' }
+    });
+    if (!res.ok) { errEl.textContent = 'Invalid token or network error (' + res.status + ')'; setSyncDotState('error','Error'); return; }
+  } catch(e) { errEl.textContent = 'Network error: ' + e.message; setSyncDotState('error','Error'); return; }
+
+  localStorage.setItem('ht_sync_token', token);
+  const gistId = gistInput.value.trim();
+  if (gistId) localStorage.setItem('ht_sync_gist_id', gistId);
+  else localStorage.removeItem('ht_sync_gist_id');
+
+  updateSyncModalState(true);
+  updateSyncBtn();
+  setSyncDotState('connected', 'Connected — use Pull or Push below');
+  showToast('Sync configured!');
+}
+
+function setSyncDotState(state, text) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-status-text');
+  document.getElementById('sync-status-row').style.display = 'block';
+  if (dot) dot.className = 'sync-status-dot ' + state;
+  if (txt) txt.textContent = text;
+}
+
+async function syncPush() {
+  const cfg = getSyncConfig();
+  if (!cfg.token) { showToast('Set up sync first'); return; }
+  const errEl = document.getElementById('sync-error');
+  errEl.textContent = '';
+  setSyncDotState('syncing', 'Pushing…');
+
+  const content = JSON.stringify({ habits, logs, deletedHabitIds, syncedAt: new Date().toISOString() }, null, 2);
+  const body = { description: 'habitOS data', public: false, files: { [GIST_FILENAME]: { content } } };
+
+  try {
+    let res, data;
+    if (cfg.gistId) {
+      res = await fetch('https://api.github.com/gists/' + cfg.gistId, {
+        method: 'PATCH',
+        headers: { Authorization: 'token ' + cfg.token, 'Content-Type': 'application/json', Accept: 'application/vnd.github.v3+json' },
+        body: JSON.stringify(body)
+      });
+    } else {
+      res = await fetch('https://api.github.com/gists', {
+        method: 'POST',
+        headers: { Authorization: 'token ' + cfg.token, 'Content-Type': 'application/json', Accept: 'application/vnd.github.v3+json' },
+        body: JSON.stringify(body)
+      });
+    }
+    data = await res.json();
+    if (!res.ok) { errEl.textContent = data.message || 'Push failed'; setSyncDotState('error', 'Push failed'); return; }
+
+    if (!cfg.gistId) {
+      localStorage.setItem('ht_sync_gist_id', data.id);
+      document.getElementById('sync-gist-id').value = data.id;
+      updateSyncBtn();
+    }
+    const now = new Date().toISOString();
+    localStorage.setItem('ht_sync_last', now);
+    setSyncDotState('connected', 'Pushed ✓');
+    document.getElementById('sync-last-time').textContent = 'Last synced: ' + new Date(now).toLocaleString();
+    updateSyncBtn();
+    showToast('Pushed to Gist ✓');
+  } catch(e) { errEl.textContent = 'Network error: ' + e.message; setSyncDotState('error', 'Error'); }
+}
+
+async function syncPull() {
+  const cfg = getSyncConfig();
+  if (!cfg.token) { showToast('Set up sync first'); return; }
+  if (!cfg.gistId) { document.getElementById('sync-error').textContent = 'No Gist ID — push first or enter one above.'; return; }
+  const errEl = document.getElementById('sync-error');
+  errEl.textContent = '';
+  setSyncDotState('syncing', 'Pulling…');
+
+  try {
+    const res = await fetch('https://api.github.com/gists/' + cfg.gistId + '?_=' + Date.now(), {
+      headers: { Authorization: 'token ' + cfg.token, Accept: 'application/vnd.github.v3+json' },
+      cache: 'no-store'
+    });
+    if (!res.ok) { errEl.textContent = 'Pull failed (' + res.status + ')'; setSyncDotState('error', 'Pull failed'); return; }
+    const data = await res.json();
+    const file = data.files[GIST_FILENAME];
+    if (!file) { errEl.textContent = 'No habitOS data found in that Gist.'; setSyncDotState('error', 'Not found'); return; }
+
+    const remote = JSON.parse(file.content);
+    // Merge remote into local — preserves local-only changes
+    mergeRemoteIntoLocal(remote);
+    saveData();
+    renderToday();
+    renderManageHabits();
+
+    // After successful pull, sync the deleted tracking from remote
+    const now = new Date().toISOString();
+    localStorage.setItem('ht_sync_last', now);
+    setSyncDotState('connected', 'Pulled ✓');
+    document.getElementById('sync-last-time').textContent = 'Last synced: ' + new Date(now).toLocaleString();
+    showToast('Pulled from Gist ✓');
+  } catch(e) { errEl.textContent = 'Error: ' + e.message; setSyncDotState('error', 'Error'); }
+}
+
+// ─── IMPORT / EXPORT ─────────────────────────────────────────────────────────
+function exportData() {
+  const data = { habits, logs, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `habits-${todayStr()}.json`;
+  a.click();
+  showToast('Data exported!');
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.habits) habits = data.habits;
+      if (data.logs) logs = data.logs;
+      saveData();
+      renderToday();
+      showToast('Data imported!');
+    } catch { showToast('Invalid file'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// ─── UTILS ───────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ─── PASSWORD AUTH ──────────────────────────────────────────────────────────
+function hashPw(pw) {
+  // simple deterministic hash (not cryptographic, but fine for local file)
+  let h = 0x811c9dc5;
+  for (let i = 0; i < pw.length; i++) {
+    h ^= pw.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return h.toString(16);
+}
+
+function initLockScreen() {
+  const stored = localStorage.getItem('ht_pw');
+  if (!stored) {
+    // No password set yet — stay hidden, let user set one via the header button
+    return;
+  }
+  // Password exists — show the lock screen
+  document.getElementById('lock-screen').classList.remove('hidden');
+  document.getElementById('lock-pw-input').focus();
+}
+
+function submitLock() {
+  const input = document.getElementById('lock-pw-input');
+  const pw = input.value;
+  const stored = localStorage.getItem('ht_pw');
+  const errEl = document.getElementById('lock-error');
+  input.classList.remove('error');
+  errEl.textContent = '';
+
+  if (!pw) { errEl.textContent = 'Please enter a password.'; return; }
+
+  if (!stored) {
+    // first-time setup
+    if (pw.length < 4) { errEl.textContent = 'Password must be at least 4 characters.'; input.classList.add('error'); return; }
+    localStorage.setItem('ht_pw', hashPw(pw));
+    document.getElementById('lock-screen').classList.add('hidden');
+    showToast('Password set! You\'re in.');
+  } else {
+    if (hashPw(pw) === stored) {
+      document.getElementById('lock-screen').classList.add('hidden');
+    } else {
+      errEl.textContent = 'Incorrect password.';
+      input.classList.add('error');
+      input.value = '';
+      setTimeout(() => input.classList.remove('error'), 500);
+    }
+  }
+}
+
+function openPwModal() {
+  document.getElementById('pw-current').value = '';
+  document.getElementById('pw-new').value = '';
+  document.getElementById('pw-confirm').value = '';
+  document.getElementById('pw-change-error').textContent = '';
+  document.getElementById('pw-modal-backdrop').classList.add('open');
+  setTimeout(() => document.getElementById('pw-current').focus(), 100);
+}
+
+function closePwModal(e) {
+  if (!e || e.target.id === 'pw-modal-backdrop')
+    document.getElementById('pw-modal-backdrop').classList.remove('open');
+}
+
+function doChangePassword() {
+  const cur = document.getElementById('pw-current').value;
+  const nw  = document.getElementById('pw-new').value;
+  const cfm = document.getElementById('pw-confirm').value;
+  const errEl = document.getElementById('pw-change-error');
+  const stored = localStorage.getItem('ht_pw');
+  errEl.textContent = '';
+
+  if (stored && hashPw(cur) !== stored) { errEl.textContent = 'Current password is incorrect.'; return; }
+  if (nw.length < 4) { errEl.textContent = 'New password must be at least 4 characters.'; return; }
+  if (nw !== cfm) { errEl.textContent = 'Passwords do not match.'; return; }
+
+  localStorage.setItem('ht_pw', hashPw(nw));
+  document.getElementById('pw-modal-backdrop').classList.remove('open');
+  showToast('Password updated!');
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+document.getElementById('header-date').textContent =
+  new Date().toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeAddModal();
+    closeConfirmModal();
+  }
+});
+
+loadData();
+initLockScreen();
+renderToday();
+updateSyncBtn();
+</script>
+</body>
+</html>
