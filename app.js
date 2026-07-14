@@ -3,6 +3,7 @@ let habits = [];
 let logs = {};   // { "YYYY-MM-DD": { habitId: "yes"|"no"|null } }
 let deletedHabitIds = [];  // Track deleted habits to prevent re-adding during merge
 let selectedType = 'good';
+let editingHabitId = null;
 let currentDate = todayStr();
 let progressPeriod = 7;
 let completionChart = null;
@@ -100,14 +101,8 @@ function renderStats() {
   });
 
   const pct = total ? Math.round((logged / total) * 100) : 0;
-  const bestStreak = getBestCurrentStreak(currentDate);
-  const bestStreakLabel = bestStreak >= 3 ? `🔥 ${bestStreak}` : `${bestStreak}`;
 
   document.getElementById('stats-row').innerHTML = `
-    <div class="stat-card">
-      <div class="stat-val">${bestStreakLabel}</div>
-      <div class="stat-label">Best streak</div>
-    </div>
     <div class="stat-card">
       <div class="stat-val">${pct}%</div>
       <div class="stat-label">Logged today</div>
@@ -121,16 +116,6 @@ function renderStats() {
       <div class="stat-label">Bad habits done</div>
     </div>
   `;
-}
-
-// Highest current streak (as of `asOfDate`) among habits visible on that date.
-function getBestCurrentStreak(asOfDate) {
-  let best = 0;
-  habits.filter(h => !h.createdAt || h.createdAt <= asOfDate).forEach(h => {
-    const s = getStreak(h.id, asOfDate);
-    if (s > best) best = s;
-  });
-  return best;
 }
 
 function renderHabitList() {
@@ -149,11 +134,11 @@ function renderHabitList() {
   let html = '';
 
   if (goodH.length) {
-    html += `<div class="habit-section-title">Good habits</div>`;
+    html += `<div class="habit-section-title good">Good habits</div>`;
     goodH.forEach(h => html += habitItemHTML(h, dayLog[h.id] || null));
   }
   if (badH.length) {
-    html += `<div class="habit-section-title">Bad habits to avoid</div>`;
+    html += `<div class="habit-section-title bad">Bad habits</div>`;
     badH.forEach(h => html += habitItemHTML(h, dayLog[h.id] || null));
   }
 
@@ -168,24 +153,22 @@ function habitItemHTML(h, val) {
 
   const statusClass = val === 'yes' ? 'done-yes' : val === 'no' ? 'done-no' : '';
 
-  const yesLabel = h.type === 'good' ? '✓' : '✓';
-  const noLabel = h.type === 'good' ? '✗' : '✗';
-  const yesTitle = h.type === 'good' ? 'Done' : 'Avoided';
-  const noTitle = h.type === 'good' ? 'Missed' : 'Gave in';
+  const yesLabel = h.type === 'good' ? 'Done' : 'Avoided';
+  const noLabel = h.type === 'good' ? 'Missed' : 'Gave in';
 
   return `
     <div class="habit-item ${statusClass}" id="hi-${h.id}">
-      <div class="habit-type-dot ${h.type}"></div>
+      <span class="habit-badge ${h.type}">${h.type}</span>
       <div class="habit-info">
         <div class="name">${escHtml(h.name)}</div>
         ${h.desc ? `<div class="meta">${escHtml(h.desc)}</div>` : ''}
       </div>
       ${streakHTML}
       <div class="habit-actions">
-        <button class="check-btn yes ${val === 'yes' ? 'active' : ''}" title="${yesTitle}"
-          onclick="logHabit('${h.id}', 'yes')">${yesLabel}</button>
-        <button class="check-btn no ${val === 'no' ? 'active' : ''}" title="${noTitle}"
-          onclick="logHabit('${h.id}', 'no')">${noLabel}</button>
+        <button class="check-btn yes ${val === 'yes' ? 'active' : ''}"
+          onclick="logHabit('${h.id}', 'yes')">✓ ${yesLabel}</button>
+        <button class="check-btn no ${val === 'no' ? 'active' : ''}"
+          onclick="logHabit('${h.id}', 'no')">✗ ${noLabel}</button>
       </div>
     </div>`;
 }
@@ -236,16 +219,32 @@ function renderManageHabits() {
     list.innerHTML = `<div class="empty-state"><div class="emoji">📋</div><p>No habits yet</p><small>Click "Add Habit" to get started</small></div>`;
     return;
   }
-  list.innerHTML = habits.map(h => `
+
+  const manageItemHTML = h => `
     <div class="manage-habit-item">
       <span class="habit-badge ${h.type}">${h.type}</span>
       <div class="manage-habit-info">
         <div class="name">${escHtml(h.name)}</div>
         ${h.desc ? `<div class="desc">${escHtml(h.desc)}</div>` : ''}
       </div>
+      <button class="btn btn-sm" onclick="editHabit('${h.id}')">Edit</button>
       <button class="btn btn-sm btn-danger" onclick="deleteHabit('${h.id}')">Delete</button>
     </div>
-  `).join('');
+  `;
+
+  const goodH = habits.filter(h => h.type === 'good');
+  const badH  = habits.filter(h => h.type === 'bad');
+
+  let html = '';
+  if (goodH.length) {
+    html += `<div class="habit-section-title good">Good habits</div>`;
+    html += goodH.map(manageItemHTML).join('');
+  }
+  if (badH.length) {
+    html += `<div class="habit-section-title bad">Bad habits</div>`;
+    html += badH.map(manageItemHTML).join('');
+  }
+  list.innerHTML = html;
 }
 
 function deleteHabit(id) {
@@ -273,8 +272,11 @@ function closeConfirmModal(e) {
     document.getElementById('confirm-modal-backdrop').classList.remove('open');
 }
 
-// ─── ADD HABIT MODAL ─────────────────────────────────────────────────────────
+// ─── ADD / EDIT HABIT MODAL ──────────────────────────────────────────────────
 function openAddModal() {
+  editingHabitId = null;
+  document.getElementById('add-modal-title').textContent = 'Add Habit';
+  document.getElementById('add-modal-save-btn').textContent = 'Save Habit';
   document.getElementById('habit-name').value = '';
   document.getElementById('habit-desc').value = '';
   selectType('good');
@@ -282,8 +284,22 @@ function openAddModal() {
   setTimeout(() => document.getElementById('habit-name').focus(), 100);
 }
 
+function editHabit(id) {
+  const habit = habits.find(h => h.id === id);
+  if (!habit) return;
+  editingHabitId = id;
+  document.getElementById('add-modal-title').textContent = 'Edit Habit';
+  document.getElementById('add-modal-save-btn').textContent = 'Save Changes';
+  document.getElementById('habit-name').value = habit.name;
+  document.getElementById('habit-desc').value = habit.desc || '';
+  selectType(habit.type);
+  document.getElementById('add-modal').classList.add('open');
+  setTimeout(() => document.getElementById('habit-name').focus(), 100);
+}
+
 function closeAddModal() {
   document.getElementById('add-modal').classList.remove('open');
+  editingHabitId = null;
 }
 
 function closeModal(e) {
@@ -299,10 +315,41 @@ function selectType(t) {
 function saveHabit() {
   const name = document.getElementById('habit-name').value.trim();
   if (!name) { showToast('Please enter a name'); return; }
+  const desc = document.getElementById('habit-desc').value.trim();
+
+  if (editingHabitId) {
+    const habit = habits.find(h => h.id === editingHabitId);
+    if (habit) {
+      if (habit.type !== selectedType) {
+        const loggedDays = Object.keys(logs).filter(d => {
+          const v = (logs[d] || {})[habit.id];
+          return v === 'yes' || v === 'no';
+        }).length;
+        if (loggedDays > 0) {
+          const ok = confirm(
+            '"' + habit.name + '" has ' + loggedDays + ' logged day' + (loggedDays === 1 ? '' : 's') + '. ' +
+            'Changing its type will re-label all of that history (e.g. "Done" becomes "Avoided") ' +
+            'and shift it between the good/bad stats. Continue?'
+          );
+          if (!ok) return;
+        }
+      }
+      habit.name = name;
+      habit.desc = desc;
+      habit.type = selectedType;
+    }
+    saveData();
+    closeAddModal();
+    renderManageHabits();
+    renderToday();
+    showToast('Habit updated!');
+    return;
+  }
+
   habits.push({
     id: 'h' + Date.now(),
     name,
-    desc: document.getElementById('habit-desc').value.trim(),
+    desc,
     type: selectedType,
     createdAt: todayStr()
   });
@@ -328,32 +375,41 @@ function renderProgress() {
   renderPerHabitLines();
 }
 
-// Weekly summary above the charts, as a row of colored stat chips.
+// Weekly summary above the charts — a mini 7-day heatmap (same green/red
+// day-scoring as the 12-month heatmap below) instead of raw percentages.
 function renderDigest() {
   const el = document.getElementById('progress-digest');
   if (!el) return;
-  if (!habits.length) { el.innerHTML = ''; return; }
+  if (!habits.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = '';
 
   const days = getDateRange(todayStr(), 7);
-  const goodAvgPct = avg(days.map(d => getCompletionForDateByType(d, 'good')));
-  const badAvgPct  = avg(days.map(d => getCompletionForDateByType(d, 'bad')));
-
-  let best = null;
-  habits.forEach(h => {
-    const s = getStreak(h.id, todayStr());
-    if (s > 0 && (!best || s > best.streak)) best = { name: h.name, streak: s };
-  });
-
-  const chips = [];
-  if (goodAvgPct !== null) chips.push('<span class="digest-chip good">✓ ' + goodAvgPct + '% good done</span>');
-  if (badAvgPct !== null) chips.push('<span class="digest-chip bad">⚠ ' + badAvgPct + '% bad avoided</span>');
-  if (best) chips.push('<span class="digest-chip streak">🔥 ' + escHtml(best.name) + ' — ' + best.streak + 'd</span>');
-
-  if (!chips.length) {
-    el.innerHTML = '<span class="digest-empty">No habits logged yet this week</span>';
+  const anyLogged = days.some(d => getDayScore(d) !== null);
+  if (!anyLogged) {
+    el.innerHTML = '<span class="digest-label">Last 7 days</span><span class="digest-empty">No habits logged yet</span>';
     return;
   }
-  el.innerHTML = '<span class="digest-label">This week</span>' + chips.join('');
+
+  const cells = days.map(d => {
+    const score = getDayScore(d);
+    const pctLabel = score === null ? 'No entries' : Math.round(score * 100) + '% success';
+    const weekdayLabel = new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2);
+    const dateLabel = new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    let fill;
+    if (score === null) {
+      fill = '<div class="week-cell-fill neutral"></div>';
+    } else {
+      const goodPct = Math.round(score * 100);
+      fill = '<div class="week-cell-fill bad" style="height:' + (100 - goodPct) + '%;"></div>'
+           + '<div class="week-cell-fill good" style="height:' + goodPct + '%;"></div>';
+    }
+    return '<div class="week-day">'
+      + '<div class="week-cell clickable" title="' + dateLabel + ' — ' + pctLabel + '" onclick="goToDateFromHeatmap(\'' + d + '\')">' + fill + '</div>'
+      + '<span class="week-day-label">' + weekdayLabel + '</span>'
+      + '</div>';
+  }).join('');
+
+  el.innerHTML = '<span class="digest-label">Last 7 days</span><div class="week-heatmap">' + cells + '</div>';
 }
 
 function goToDateFromHeatmap(dateStr) {
@@ -450,6 +506,7 @@ function renderHeatmap() {
     <div class="heatmap-month-labels">${monthLabelsHTML}</div>
     <div class="heatmap">${cellsHTML}</div>
   `;
+  wrap.scrollLeft = wrap.scrollWidth; // default view to the most recent days
 }
 
 function getCompletionForDate(dateStr) {
@@ -503,10 +560,10 @@ function renderCompletionChart() {
   const titleEl = document.getElementById('dual-chart-title');
   if (titleEl) {
     let summary = '';
-    if (goodAvg !== null) summary += `<span style="color:#3ecf8e;font-weight:600;">${goodAvg}% avg good</span>`;
+    if (goodAvg !== null) summary += `<span style="color:#3ecf8e;font-weight:600;">${goodAvg}% good</span>`;
     if (goodAvg !== null && badAvg !== null) summary += ' &nbsp;·&nbsp; ';
-    if (badAvg !== null) summary += `<span style="color:#f56565;font-weight:600;">${badAvg}% avg bad gave in</span>`;
-    titleEl.innerHTML = 'Completion rate &nbsp;<span style="font-size:12px;color:var(--text3);font-weight:400;">' + summary + '</span>';
+    if (badAvg !== null) summary += `<span style="color:#f56565;font-weight:600;">${badAvg}% bad</span>`;
+    titleEl.innerHTML = 'Daily trend &nbsp;<span style="font-size:12px;color:var(--text3);font-weight:400;">' + summary + '</span>';
   }
 
   const ctx = document.getElementById('completion-chart').getContext('2d');
@@ -515,7 +572,7 @@ function renderCompletionChart() {
   const datasets = [];
   if (goodHabits.length) {
     datasets.push({
-      label: 'Good habits done',
+      label: 'Good habits',
       data: goodData,
       borderColor: '#3ecf8e',
       backgroundColor: 'rgba(62,207,142,0.07)',
@@ -540,7 +597,7 @@ function renderCompletionChart() {
   }
   if (badHabits.length) {
     datasets.push({
-      label: 'Bad habits — gave in',
+      label: 'Bad habits',
       data: badData,
       borderColor: '#f56565',
       backgroundColor: 'rgba(245,101,101,0.05)',
@@ -577,46 +634,7 @@ function renderCompletionChart() {
             filter: item => !item.text.startsWith('Avg')
           }
         },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              if (ctx.dataset.label.startsWith('Avg')) return null;
-              const v = ctx.parsed.y;
-              const isGood = ctx.dataset.label.includes('Good');
-              const isBad  = ctx.dataset.label.includes('Bad');
-              const dateStr = dates[ctx.dataIndex];
-              const dayLog = logs[dateStr] || {};
-              let note = '';
-              if (isGood) {
-                const g = habits.filter(h => h.type === 'good');
-                const loggedG = g.filter(h => dayLog[h.id] === 'yes' || dayLog[h.id] === 'no').length;
-                const doneG   = g.filter(h => dayLog[h.id] === 'yes').length;
-                note = loggedG ? ` (${doneG}/${loggedG} logged)` : '';
-              } else if (isBad) {
-                const b = habits.filter(h => h.type === 'bad');
-                const loggedB  = b.filter(h => dayLog[h.id] === 'yes' || dayLog[h.id] === 'no').length;
-                const gaveInB  = b.filter(h => dayLog[h.id] === 'no').length;
-                const avoidedB = b.filter(h => dayLog[h.id] === 'yes').length;
-                note = loggedB ? ` (${gaveInB} gave in, ${avoidedB} avoided / ${loggedB} logged)` : '';
-              }
-              return ' ' + ctx.dataset.label + ': ' + (v !== null ? v + '%' + note : '—');
-            },
-            afterBody: (items) => {
-              const dateStr = dates[items[0].dataIndex];
-              const dayLog = logs[dateStr] || {};
-              const lines = [];
-              habits.forEach(h => {
-                const v = dayLog[h.id];
-                if (!v) return;
-                const icon = (h.type === 'good' && v === 'yes') ? '✓' :
-                             (h.type === 'good' && v === 'no')  ? '✗' :
-                             (h.type === 'bad'  && v === 'yes') ? '✓' : '⚠';
-                lines.push('  ' + icon + ' ' + h.name);
-              });
-              return lines.length ? ['', 'Habits:'].concat(lines) : [];
-            }
-          }
-        }
+        tooltip: { enabled: false }
       },
       scales: {
         y: {
@@ -669,7 +687,7 @@ function renderPerHabitLines() {
   const dates = getDateRange(todayStr(), progressPeriod);
   const total = dates.length;
 
-  wrap.innerHTML = habits.map(function(h) {
+  const itemHTML = function(h) {
     // Filter dates to only include those from when the habit was created onwards
     const habitDates = dates.filter(d => !h.createdAt || d >= h.createdAt);
     const habitTotal = habitDates.length;
@@ -694,7 +712,7 @@ function renderPerHabitLines() {
       ? '<span style="font-size:12px;color:#fbbf24;background:rgba(251,191,36,0.1);padding:2px 8px;border-radius:6px;">&#128293; ' + streak + ' streak</span>'
       : '';
     const bestHTML = longest >= 2
-      ? '<span style="font-size:12px;color:var(--text3);">best: ' + longest + 'd</span>'
+      ? '<span class="best-badge">🏆 best ' + longest + 'd</span>'
       : '';
 
     return '<div class="habit-progress-item">'
@@ -710,13 +728,27 @@ function renderPerHabitLines() {
       + '<div style="width:' + missedPct + '%;background:' + missedColor + ';opacity:0.5;transition:width 0.4s;"></div>'
       + '<div style="width:' + unlogPct + '%;background:var(--bg3);"></div>'
       + '</div>'
-      + '<div style="display:flex;gap:16px;font-size:12px;color:var(--text3);flex-wrap:wrap;">'
-      + '<span style="color:' + doneColor + ';font-weight:500;">' + doneLabel + ': ' + done + 'd (' + donePct + '%)</span>'
-      + '<span style="color:' + missedColor + ';opacity:0.85;">' + missedLabel + ': ' + missed + 'd (' + missedPct + '%)</span>'
-      + '<span>Unlogged: ' + unlogged + 'd</span>'
+      + '<div class="prog-stats">'
+      + '<span class="prog-stat good">' + doneLabel + ': ' + done + 'd <b>' + donePct + '%</b></span>'
+      + '<span class="prog-stat bad">' + missedLabel + ': ' + missed + 'd <b>' + missedPct + '%</b></span>'
+      + '<span class="prog-stat neutral">Unlogged: ' + unlogged + 'd</span>'
       + '</div>'
       + '</div>';
-  }).join('');
+  };
+
+  const goodH = habits.filter(h => h.type === 'good');
+  const badH  = habits.filter(h => h.type === 'bad');
+
+  let html = '';
+  if (goodH.length) {
+    html += '<div class="habit-section-title good">Good habits</div>';
+    html += goodH.map(itemHTML).join('');
+  }
+  if (badH.length) {
+    html += '<div class="habit-section-title bad">Bad habits</div>';
+    html += badH.map(itemHTML).join('');
+  }
+  wrap.innerHTML = html;
 
   // Sparkline canvases only exist in the DOM now — create their charts after insertion.
   habits.forEach(function(h) {

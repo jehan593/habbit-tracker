@@ -26,9 +26,6 @@
       <button class="btn-sync btn-sm" id="sync-btn" onclick="openSyncModal()">⟳ Sync</button>
       <button class="btn btn-sm" id="header-pull-btn" onclick="syncPull()" style="display:none;">↓ Pull</button>
       <button class="btn-accent btn-sm" id="header-push-btn" onclick="syncPush()" style="display:none;">↑ Push</button>
-      <button class="btn-lock btn-sm" onclick="openPwModal()">⚿ Password</button>
-      <button class="btn btn-sm" onclick="exportData()">↑ Export</button>
-      <button class="btn btn-sm" onclick="document.getElementById('file-input').click()">↓ Import</button>
       <input type="file" id="file-input" accept=".json" onchange="importData(event)">
     </div>
   </div>
@@ -37,6 +34,7 @@
       <button class="tab active" id="tab-today" onclick="switchTab('today', this)">Log</button>
       <button class="tab" onclick="switchTab('progress', this)">Progress</button>
       <button class="tab" onclick="switchTab('habits', this)">Manage Habits</button>
+      <button class="tab" onclick="switchTab('settings', this)">Settings</button>
     </div>
   </div>
 </header>
@@ -51,9 +49,10 @@
       </div>
       <div class="date-nav">
         <button class="btn btn-sm" onclick="changeDay(-1)">←</button>
-        <input type="date" id="date-picker" onchange="onDateChange()">
         <button class="btn btn-sm" onclick="changeDay(1)">→</button>
         <button class="btn btn-sm btn-ghost" onclick="goToday()">Today</button>
+        <button type="button" class="btn btn-sm" onclick="const p=document.getElementById('date-picker'); p.showPicker ? p.showPicker() : p.focus();">📅 Pick a date</button>
+        <input type="date" id="date-picker" class="date-picker-hidden" onchange="onDateChange()">
       </div>
     </div>
 
@@ -66,12 +65,11 @@
   <div class="section" id="section-progress">
     <div class="progress-header">
       <h2>Progress</h2>
-      <p>Your habit completion over time</p>
-      <div id="progress-digest" class="digest-row"></div>
+      <p>Your habit trends over time</p>
     </div>
 
     <div class="chart-card">
-      <h3>Consistency — last 12 months</h3>
+      <div id="progress-digest" class="digest-row"></div>
       <div class="heatmap-wrap" id="heatmap-wrap"></div>
       <div class="heatmap-legend">
         <span>Bad</span>
@@ -96,12 +94,12 @@
       </div>
 
       <div class="chart-card">
-        <h3 id="dual-chart-title">Good vs bad habit completion rate</h3>
+        <h3 id="dual-chart-title">Daily trend</h3>
         <canvas id="completion-chart" height="100"></canvas>
       </div>
 
       <div class="chart-card" id="per-habit-lines-card">
-        <h3>Per-habit — done vs missed</h3>
+        <h3>Per-habit breakdown</h3>
         <div id="per-habit-lines"></div>
       </div>
     </div>
@@ -114,6 +112,42 @@
       <button class="btn-accent" onclick="openAddModal()">+ Add Habit</button>
     </div>
     <div id="manage-habits-list"></div>
+  </div>
+
+  <!-- SETTINGS SECTION -->
+  <div class="section" id="section-settings">
+    <div class="habits-manage-header">
+      <h2>Settings</h2>
+    </div>
+
+    <div class="chart-card">
+      <h3>Security</h3>
+      <div class="settings-row">
+        <div class="settings-row-text">
+          <div class="settings-row-title">Password</div>
+          <div class="settings-row-desc">Change the password used to lock this tracker.</div>
+        </div>
+        <button class="btn-lock btn-sm" onclick="openPwModal()">⚿ Change Password</button>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Data</h3>
+      <div class="settings-row">
+        <div class="settings-row-text">
+          <div class="settings-row-title">Export data</div>
+          <div class="settings-row-desc">Download all your habits and logs as a JSON file.</div>
+        </div>
+        <button class="btn btn-sm" onclick="exportData()">↑ Export</button>
+      </div>
+      <div class="settings-row">
+        <div class="settings-row-text">
+          <div class="settings-row-title">Import data</div>
+          <div class="settings-row-desc">Restore from a previously exported JSON file.</div>
+        </div>
+        <button class="btn btn-sm" onclick="document.getElementById('file-input').click()">↓ Import</button>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -158,7 +192,7 @@
 <!-- ADD HABIT MODAL -->
 <div class="modal-backdrop" id="add-modal" onclick="closeModal(event)">
   <div class="modal">
-    <h3>Add Habit</h3>
+    <h3 id="add-modal-title">Add Habit</h3>
     <div class="form-group">
       <label>Habit name</label>
       <input type="text" id="habit-name" placeholder="e.g. Morning run" maxlength="60">
@@ -176,7 +210,7 @@
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeAddModal()">Cancel</button>
-      <button class="btn-accent" onclick="saveHabit()">Save Habit</button>
+      <button class="btn-accent" id="add-modal-save-btn" onclick="saveHabit()">Save Habit</button>
     </div>
   </div>
 </div>
