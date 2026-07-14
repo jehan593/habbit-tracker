@@ -667,7 +667,7 @@ function getLongestStreak(habitId) {
   }
   const end = todayStr();
   // Safety cap: isValidDateStr only checks format, not plausible range, so a
-  // malformed/extreme createdAt from an import or synced Gist (e.g. year 0001)
+  // malformed/extreme createdAt from an import or synced data (e.g. year 0001)
   // shouldn't turn this into a hundreds-of-thousands-of-iterations scan.
   const earliestReasonable = offsetDate(end, -1825); // ~5 years
   if (start < earliestReasonable) start = earliestReasonable;
@@ -787,19 +787,21 @@ function renderPerHabitLines() {
 }
 
 
-// ─── GITHUB GIST SYNC ────────────────────────────────────────────────────────
-const GIST_FILENAME = 'habitOS-data.json';
+// ─── SUPABASE SYNC ───────────────────────────────────────────────────────────
+// Fill these in from your Supabase project: Project Settings → API.
+// The anon key is safe to ship client-side — Row Level Security (see the SQL
+// migration) is what actually restricts each user to their own rows.
+const SUPABASE_URL = 'https://aybqklcczxlnkclvkudx.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF5YnFrbGNjenhsbmtjbHZrdWR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwMzM0OTAsImV4cCI6MjA5OTYwOTQ5MH0.AARisHgCux0t6D4OaKW40kMjupLSDiMEuV6c1cSTNl8';
 
-function getSyncConfig() {
-  return {
-    token: localStorage.getItem('ht_sync_token') || '',
-    gistId: localStorage.getItem('ht_sync_gist_id') || '',
-    lastSync: localStorage.getItem('ht_sync_last') || ''
-  };
-}
+const sb = (window.supabase && SUPABASE_URL.startsWith('http') && !SUPABASE_URL.includes('YOUR-PROJECT'))
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+let syncSession = null; // current Supabase auth session, or null when signed out
 
 function isSyncConnected() {
-  return !!getSyncConfig().token;
+  return !!syncSession;
 }
 
 function updateSyncBtn() {
@@ -807,19 +809,15 @@ function updateSyncBtn() {
   const pullBtn = document.getElementById('header-pull-btn');
   const pushBtn = document.getElementById('header-push-btn');
   if (!btn) return;
-  const cfg = getSyncConfig();
-  btn.classList.toggle('active', !!cfg.token);
-  const showTransfer = !!(cfg.token && cfg.gistId);
-  if (pullBtn) pullBtn.style.display = showTransfer ? 'inline-flex' : 'none';
-  if (pushBtn) pushBtn.style.display = cfg.token ? 'inline-flex' : 'none';
+  const connected = isSyncConnected();
+  btn.classList.toggle('active', connected);
+  if (pullBtn) pullBtn.style.display = connected ? 'inline-flex' : 'none';
+  if (pushBtn) pushBtn.style.display = connected ? 'inline-flex' : 'none';
 }
 
 function openSyncModal() {
-  const cfg = getSyncConfig();
-  document.getElementById('sync-token').value = cfg.token ? '••••••••••••••••••••' : '';
-  document.getElementById('sync-gist-id').value = cfg.gistId || '';
   document.getElementById('sync-error').textContent = '';
-  updateSyncModalState(!!cfg.token);
+  updateSyncModalState();
   document.getElementById('sync-modal-backdrop').classList.add('open');
 }
 
@@ -828,32 +826,74 @@ function closeSyncModal(e) {
     document.getElementById('sync-modal-backdrop').classList.remove('open');
 }
 
-function onSyncTokenInput() {
-  const input = document.getElementById('sync-token');
-  if (input.value === '••••••••••••••••••••') input.value = '';
-  updateSyncModalState(false);
+function onSyncEmailInput() {
+  document.getElementById('sync-error').textContent = '';
 }
 
-function updateSyncModalState(connected) {
-  const cfg = getSyncConfig();
-  document.getElementById('sync-gist-row').style.display = 'block';
-  document.getElementById('sync-status-row').style.display = connected ? 'block' : 'none';
-  document.getElementById('sync-save-btn').textContent = connected ? 'Update' : 'Connect';
+function updateSyncModalState() {
+  const connected = isSyncConnected();
+  document.getElementById('sync-signed-out').style.display = connected ? 'none' : 'block';
+  document.getElementById('sync-signed-in').style.display = connected ? 'block' : 'none';
+
+  const saveBtn = document.getElementById('sync-save-btn');
+  saveBtn.textContent = connected ? 'Sign out' : 'Send magic link';
+  saveBtn.onclick = connected ? syncSignOut : sendMagicLink;
 
   if (connected) {
     const dot = document.getElementById('sync-dot');
     const txt = document.getElementById('sync-status-text');
     dot.className = 'sync-status-dot connected';
-    txt.textContent = cfg.gistId ? 'Connected — Gist: ' + cfg.gistId.slice(0, 10) + '…' : 'Connected — add Gist ID then Push to create one';
-    const last = document.getElementById('sync-last-time');
-    last.textContent = cfg.lastSync ? 'Last synced: ' + new Date(cfg.lastSync).toLocaleString() : '';
+    txt.textContent = 'Signed in as ' + syncSession.user.email;
+    const lastSync = localStorage.getItem('ht_sync_last');
+    document.getElementById('sync-last-time').textContent =
+      lastSync ? 'Last synced: ' + new Date(lastSync).toLocaleString() : '';
   }
 }
 
+async function sendMagicLink() {
+  const errEl = document.getElementById('sync-error');
+  errEl.textContent = '';
+  if (!sb) { errEl.textContent = 'Sync isn’t configured — missing Supabase project URL/key.'; return; }
+  const email = document.getElementById('sync-email').value.trim();
+  if (!email) { errEl.textContent = 'Enter your email address.'; return; }
+
+  const btn = document.getElementById('sync-save-btn');
+  btn.disabled = true;
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+  btn.disabled = false;
+  if (error) { errEl.textContent = error.message; return; }
+  showToast('Magic link sent — check your email');
+}
+
+async function syncSignOut() {
+  if (sb) await sb.auth.signOut();
+  syncSession = null;
+  updateSyncBtn();
+  updateSyncModalState();
+  showToast('Signed out');
+}
+
+async function initSyncAuth() {
+  if (!sb) return;
+  const { data: { session } } = await sb.auth.getSession();
+  syncSession = session;
+  updateSyncBtn();
+
+  sb.auth.onAuthStateChange((event, session) => {
+    const wasConnected = isSyncConnected();
+    syncSession = session;
+    updateSyncBtn();
+    if (document.getElementById('sync-modal-backdrop').classList.contains('open')) {
+      updateSyncModalState();
+    }
+    if (session && !wasConnected) showToast('Signed in ✓');
+  });
+}
+
 // ─── UNTRUSTED-DATA SANITIZATION ─────────────────────────────────────────────
-// Applied to anything not created via the app's own UI (imported files, or
-// data pulled from a Gist that could have been hand-edited or tampered with).
-// Habit ids and types get interpolated unescaped into inline HTML attributes
+// Applied to imported JSON files, which could have been hand-edited or come
+// from an untrusted source. Habit ids and types get interpolated unescaped
+// into inline HTML attributes
 // (see habitItemHTML / renderManageHabits), so unvalidated fields there are
 // an XSS vector — this whitelists/regenerates them before they ever reach render.
 function isValidDateStr(s) {
@@ -918,34 +958,25 @@ function sanitizeDataset(raw) {
   return { habits: cleanHabits, logs: cleanLogs, deletedHabitIds: deletedHabitIdsClean };
 }
 
-// Merge remote data into local.
-// Remote habits are the source of truth (so deletions propagate on pull).
-// Local-only habits (created on this device since the last push) are preserved.
-// Remote wins on log-entry conflicts (same habit same day).
-function mergeRemoteIntoLocal(remote) {
-  const clean = sanitizeDataset(remote || {});
-  const remoteDeletedIds = clean.deletedHabitIds;
-  const deletedSet = new Set([...deletedHabitIds, ...remoteDeletedIds]);
+// Merge remote rows into local state.
+// Remote habits are the source of truth for anything already pushed (so edits
+// or deletions made on another device propagate on pull). A habit that only
+// exists locally (created on this device since the last push) is preserved.
+// Remote wins on log-entry conflicts (same habit, same day).
+function mergeRemoteIntoLocal(remoteHabits, remoteLogRows) {
+  const activeRemote = remoteHabits.filter(h => !h.deleted_at);
+  const deletedRemoteIds = new Set(remoteHabits.filter(h => h.deleted_at).map(h => h.id));
+  const remoteIds = new Set(activeRemote.map(h => h.id));
 
-  // Remote habits are the source of truth, but a habit deleted on either side
-  // is dropped even if the remote copy hasn't caught up with that deletion yet —
-  // otherwise merging in a stale remote (e.g. syncPush pulling before pushing)
-  // would resurrect a habit the user just deleted locally.
-  const remoteHabits = clean.habits.filter(h => !deletedSet.has(h.id));
+  const localOnlyHabits = habits.filter(h => !remoteIds.has(h.id) && !deletedRemoteIds.has(h.id));
+  habits = [
+    ...activeRemote.map(h => ({ id: h.id, name: h.name, type: h.type, desc: h.description || '', createdAt: h.created_at })),
+    ...localOnlyHabits
+  ];
 
-  // Habits: use remote as the base, then append any local-only habits
-  // (created on this device since the last push) so they aren't wiped.
-  const remoteIds = new Set(remoteHabits.map(h => h.id));
-  const localOnlyHabits = habits.filter(h => !remoteIds.has(h.id) && !deletedSet.has(h.id));
-  habits = [...remoteHabits, ...localOnlyHabits];
-
-  // Merge logs: remote wins if both sides have an entry for the same day/habit
-  const remoteLogs = clean.logs;
-  for (const date of Object.keys(remoteLogs)) {
-    if (!logs[date]) logs[date] = {};
-    for (const habitId of Object.keys(remoteLogs[date])) {
-      logs[date][habitId] = remoteLogs[date][habitId];
-    }
+  for (const row of remoteLogRows) {
+    if (!logs[row.date]) logs[row.date] = {};
+    logs[row.date][row.habit_id] = row.value;
   }
 
   // Clean up log entries for habits that no longer exist
@@ -956,154 +987,98 @@ function mergeRemoteIntoLocal(remote) {
     }
   }
 
-  // Merge deleted habit tracking
-  for (const id of remoteDeletedIds) {
-    if (!deletedHabitIds.includes(id)) {
-      deletedHabitIds.push(id);
-    }
+  // Remote tombstones (habits deleted on another device) need to be tracked
+  // locally too, so a later push doesn't accidentally resurrect them.
+  for (const id of deletedRemoteIds) {
+    if (!deletedHabitIds.includes(id)) deletedHabitIds.push(id);
   }
-}
-
-async function saveSyncConfig() {
-  const tokenInput = document.getElementById('sync-token');
-  const gistInput = document.getElementById('sync-gist-id');
-  const errEl = document.getElementById('sync-error');
-  errEl.textContent = '';
-
-  let token = tokenInput.value.trim();
-  if (token === '••••••••••••••••••••' || token === '') token = getSyncConfig().token;
-  if (!token) { errEl.textContent = 'Please enter a GitHub token.'; return; }
-  if (!token.startsWith('ghp_') && !token.startsWith('github_pat_') && !token.startsWith('gho_')) {
-    errEl.textContent = 'Token should start with ghp_, github_pat_, or gho_';
-    return;
-  }
-
-  setSyncDotState('syncing', 'Verifying token…');
-  try {
-    const res = await fetch('https://api.github.com/user', {
-      headers: { Authorization: 'token ' + token, Accept: 'application/vnd.github.v3+json' }
-    });
-    if (!res.ok) { errEl.textContent = 'Invalid token or network error (' + res.status + ')'; setSyncDotState('error','Error'); return; }
-  } catch(e) { errEl.textContent = 'Network error: ' + e.message; setSyncDotState('error','Error'); return; }
-
-  localStorage.setItem('ht_sync_token', token);
-  const gistId = gistInput.value.trim();
-  if (gistId) localStorage.setItem('ht_sync_gist_id', gistId);
-  else localStorage.removeItem('ht_sync_gist_id');
-
-  updateSyncModalState(true);
-  updateSyncBtn();
-  setSyncDotState('connected', 'Connected — use Pull or Push below');
-  showToast('Sync configured!');
 }
 
 function setSyncDotState(state, text) {
   const dot = document.getElementById('sync-dot');
   const txt = document.getElementById('sync-status-text');
-  document.getElementById('sync-status-row').style.display = 'block';
   if (dot) dot.className = 'sync-status-dot ' + state;
   if (txt) txt.textContent = text;
 }
 
 async function syncPush() {
-  const cfg = getSyncConfig();
-  if (!cfg.token) { showToast('Set up sync first'); return; }
+  if (!sb || !syncSession) { showToast('Sign in to sync first'); return; }
   const errEl = document.getElementById('sync-error');
   errEl.textContent = '';
   setSyncDotState('syncing', 'Pushing…');
 
-  // Pull and merge first so a push from this device doesn't silently clobber
-  // changes another device already pushed since our last sync.
-  if (cfg.gistId) {
-    try {
-      const pullRes = await fetch('https://api.github.com/gists/' + cfg.gistId + '?_=' + Date.now(), {
-        headers: { Authorization: 'token ' + cfg.token, Accept: 'application/vnd.github.v3+json' },
-        cache: 'no-store'
-      });
-      if (pullRes.ok) {
-        const pullData = await pullRes.json();
-        const remoteFile = pullData.files && pullData.files[GIST_FILENAME];
-        if (remoteFile) {
-          mergeRemoteIntoLocal(JSON.parse(remoteFile.content));
-          saveData();
-          renderToday();
-          renderManageHabits();
-          renderProgress();
-        }
-      }
-      // If the pull fails (network hiccup, etc.) fall through and push local
-      // state as a best effort rather than blocking the push entirely.
-    } catch(e) {}
+  const uid = syncSession.user.id;
+  const habitRows = habits.map(h => ({
+    id: h.id, user_id: uid, name: h.name, type: h.type,
+    description: h.desc || '', created_at: h.createdAt || null, deleted_at: null
+  }));
+  // Tombstone rows for habits deleted on this device — upsert is idempotent,
+  // so re-sending the same tombstone on every push is harmless.
+  const tombstoneRows = deletedHabitIds
+    .filter(id => !habits.some(h => h.id === id))
+    .map(id => ({
+      id, user_id: uid, name: '(deleted)', type: 'good', description: '', created_at: null,
+      deleted_at: new Date().toISOString()
+    }));
+  const logRows = [];
+  for (const date of Object.keys(logs)) {
+    for (const habitId of Object.keys(logs[date])) {
+      logRows.push({ user_id: uid, habit_id: habitId, date, value: logs[date][habitId] });
+    }
   }
 
-  const content = JSON.stringify({ habits, logs, deletedHabitIds, syncedAt: new Date().toISOString() }, null, 2);
-  const body = { description: 'habitOS data', public: false, files: { [GIST_FILENAME]: { content } } };
-
   try {
-    let res, data;
-    if (cfg.gistId) {
-      res = await fetch('https://api.github.com/gists/' + cfg.gistId, {
-        method: 'PATCH',
-        headers: { Authorization: 'token ' + cfg.token, 'Content-Type': 'application/json', Accept: 'application/vnd.github.v3+json' },
-        body: JSON.stringify(body)
-      });
-    } else {
-      res = await fetch('https://api.github.com/gists', {
-        method: 'POST',
-        headers: { Authorization: 'token ' + cfg.token, 'Content-Type': 'application/json', Accept: 'application/vnd.github.v3+json' },
-        body: JSON.stringify(body)
-      });
+    if (habitRows.length || tombstoneRows.length) {
+      const { error } = await sb.from('habits').upsert([...habitRows, ...tombstoneRows]);
+      if (error) throw error;
     }
-    data = await res.json();
-    if (!res.ok) { errEl.textContent = data.message || 'Push failed'; setSyncDotState('error', 'Push failed'); return; }
-
-    if (!cfg.gistId) {
-      localStorage.setItem('ht_sync_gist_id', data.id);
-      document.getElementById('sync-gist-id').value = data.id;
-      updateSyncBtn();
+    if (logRows.length) {
+      const { error } = await sb.from('logs').upsert(logRows);
+      if (error) throw error;
     }
     const now = new Date().toISOString();
     localStorage.setItem('ht_sync_last', now);
     setSyncDotState('connected', 'Pushed ✓');
-    document.getElementById('sync-last-time').textContent = 'Last synced: ' + new Date(now).toLocaleString();
-    updateSyncBtn();
-    showToast('Pushed to Gist ✓');
-  } catch(e) { errEl.textContent = 'Network error: ' + e.message; setSyncDotState('error', 'Error'); }
+    const last = document.getElementById('sync-last-time');
+    if (last) last.textContent = 'Last synced: ' + new Date(now).toLocaleString();
+    showToast('Pushed ✓');
+  } catch(e) {
+    errEl.textContent = e.message || 'Push failed';
+    setSyncDotState('error', 'Push failed');
+  }
 }
 
 async function syncPull() {
-  const cfg = getSyncConfig();
-  if (!cfg.token) { showToast('Set up sync first'); return; }
-  if (!cfg.gistId) { document.getElementById('sync-error').textContent = 'No Gist ID — push first or enter one above.'; return; }
+  if (!sb || !syncSession) { showToast('Sign in to sync first'); return; }
   const errEl = document.getElementById('sync-error');
   errEl.textContent = '';
   setSyncDotState('syncing', 'Pulling…');
 
+  const uid = syncSession.user.id;
   try {
-    const res = await fetch('https://api.github.com/gists/' + cfg.gistId + '?_=' + Date.now(), {
-      headers: { Authorization: 'token ' + cfg.token, Accept: 'application/vnd.github.v3+json' },
-      cache: 'no-store'
-    });
-    if (!res.ok) { errEl.textContent = 'Pull failed (' + res.status + ')'; setSyncDotState('error', 'Pull failed'); return; }
-    const data = await res.json();
-    const file = data.files[GIST_FILENAME];
-    if (!file) { errEl.textContent = 'No habitOS data found in that Gist.'; setSyncDotState('error', 'Not found'); return; }
+    const [habitsRes, logsRes] = await Promise.all([
+      sb.from('habits').select('*').eq('user_id', uid),
+      sb.from('logs').select('*').eq('user_id', uid)
+    ]);
+    if (habitsRes.error) throw habitsRes.error;
+    if (logsRes.error) throw logsRes.error;
 
-    const remote = JSON.parse(file.content);
-    // Merge remote into local — preserves local-only changes
-    mergeRemoteIntoLocal(remote);
+    mergeRemoteIntoLocal(habitsRes.data || [], logsRes.data || []);
     saveData();
     renderToday();
     renderManageHabits();
     renderProgress();
 
-    // After successful pull, sync the deleted tracking from remote
     const now = new Date().toISOString();
     localStorage.setItem('ht_sync_last', now);
     setSyncDotState('connected', 'Pulled ✓');
-    document.getElementById('sync-last-time').textContent = 'Last synced: ' + new Date(now).toLocaleString();
-    showToast('Pulled from Gist ✓');
-  } catch(e) { errEl.textContent = 'Error: ' + e.message; setSyncDotState('error', 'Error'); }
+    const last = document.getElementById('sync-last-time');
+    if (last) last.textContent = 'Last synced: ' + new Date(now).toLocaleString();
+    showToast('Pulled ✓');
+  } catch(e) {
+    errEl.textContent = e.message || 'Pull failed';
+    setSyncDotState('error', 'Pull failed');
+  }
 }
 
 // ─── IMPORT / EXPORT ─────────────────────────────────────────────────────────
@@ -1254,3 +1229,4 @@ loadData();
 initLockScreen();
 renderToday();
 updateSyncBtn();
+initSyncAuth();
