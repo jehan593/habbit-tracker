@@ -182,7 +182,11 @@ function habitItemHTML(h, val) {
 function logHabit(id, val) {
   if (!logs[currentDate]) logs[currentDate] = {};
   const current = logs[currentDate][id];
-  logs[currentDate][id] = current === val ? null : val;
+  if (current === val) {
+    delete logs[currentDate][id];
+  } else {
+    logs[currentDate][id] = val;
+  }
   dirtyLogKeys.add(currentDate + '|' + id);
   saveData();
   scheduleAutoSync();
@@ -1097,7 +1101,9 @@ async function runSync({ silent } = {}) {
     const logRows = [];
     for (const date of Object.keys(logs)) {
       for (const habitId of Object.keys(logs[date])) {
-        logRows.push({ user_id: uid, habit_id: habitId, date, value: logs[date][habitId] });
+        const value = logs[date][habitId];
+        if (value == null) { delete logs[date][habitId]; continue; }
+        logRows.push({ user_id: uid, habit_id: habitId, date, value });
       }
     }
 
