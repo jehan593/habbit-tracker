@@ -163,12 +163,14 @@ function habitItemHTML(h, val) {
         <div class="name">${escHtml(h.name)}</div>
         ${h.desc ? `<div class="meta">${escHtml(h.desc)}</div>` : ''}
       </div>
-      ${streakHTML}
-      <div class="habit-actions">
-        <button class="check-btn yes ${val === 'yes' ? 'active' : ''}"
-          onclick="logHabit('${h.id}', 'yes')">✓ ${yesLabel}</button>
-        <button class="check-btn no ${val === 'no' ? 'active' : ''}"
-          onclick="logHabit('${h.id}', 'no')">✗ ${noLabel}</button>
+      <div class="habit-item-meta">
+        ${streakHTML}
+        <div class="habit-actions">
+          <button class="check-btn yes ${val === 'yes' ? 'active' : ''}"
+            onclick="logHabit('${h.id}', 'yes')">✓ ${yesLabel}</button>
+          <button class="check-btn no ${val === 'no' ? 'active' : ''}"
+            onclick="logHabit('${h.id}', 'no')">✗ ${noLabel}</button>
+        </div>
       </div>
     </div>`;
 }
@@ -227,8 +229,10 @@ function renderManageHabits() {
         <div class="name">${escHtml(h.name)}</div>
         ${h.desc ? `<div class="desc">${escHtml(h.desc)}</div>` : ''}
       </div>
-      <button class="btn btn-sm" onclick="editHabit('${h.id}')">Edit</button>
-      <button class="btn btn-sm btn-danger" onclick="deleteHabit('${h.id}')">Delete</button>
+      <div class="manage-habit-actions">
+        <button class="btn btn-sm" onclick="editHabit('${h.id}')">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteHabit('${h.id}')">Delete</button>
+      </div>
     </div>
   `;
 
@@ -443,7 +447,8 @@ function getDayScore(dateStr) {
 // it approaches 1), 'bad1'..'bad4' (redder as it approaches 0), or '' for a
 // neutral/tied day (score exactly 0.5, or no entries at all).
 function heatmapLevel(score) {
-  if (score === null || score === 0.5) return '';
+  if (score === null) return '';
+  if (score === 0.5) return 'tied';
   if (score > 0.5) {
     const t = (score - 0.5) / 0.5;
     return 'good' + (t <= 0.25 ? 1 : t <= 0.5 ? 2 : t <= 0.75 ? 3 : 4);
@@ -719,9 +724,11 @@ function renderPerHabitLines() {
       + '<div class="progress-top">'
       + '<span class="habit-badge ' + h.type + '">' + h.type + '</span>'
       + '<span class="prog-name">' + escHtml(h.name) + '</span>'
+      + '<div class="progress-top-meta">'
       + streakHTML
       + bestHTML
       + '<canvas class="habit-sparkline" id="spark-' + h.id + '" width="60" height="20"></canvas>'
+      + '</div>'
       + '</div>'
       + '<div style="display:flex;gap:3px;height:8px;border-radius:4px;overflow:hidden;margin-bottom:8px;">'
       + '<div style="width:' + donePct + '%;background:' + doneColor + ';transition:width 0.4s;"></div>'

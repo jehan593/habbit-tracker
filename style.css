@@ -229,8 +229,9 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
   border-radius: var(--radius-lg);
   padding: 12px 16px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: 8px 14px;
   margin-bottom: 6px;
   transition: border-color 0.15s;
 }
@@ -238,9 +239,11 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
 .habit-item.done-yes { border-left: 3px solid var(--good); }
 .habit-item.done-no { border-left: 3px solid var(--bad); }
 
-.habit-info { flex: 1; min-width: 0; }
+.habit-info { flex: 1 1 auto; min-width: 0; }
 .habit-info .name { font-weight: 500; font-size: 15px; color: var(--text); }
 .habit-info .meta { font-size: 12px; color: var(--text3); margin-top: 2px; }
+
+.habit-item-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
 
 .habit-streak {
   font-family: var(--font);
@@ -376,12 +379,14 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
   border-radius: var(--radius-lg);
   padding: 16px 20px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: 8px 14px;
   margin-bottom: 8px;
   transition: border-color 0.15s;
 }
 .manage-habit-item:hover { border-color: var(--border2); }
+.manage-habit-actions { display: flex; gap: 8px; flex-shrink: 0; margin-left: auto; }
 .habit-badge {
   font-size: 11px;
   font-weight: 600;
@@ -392,7 +397,7 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
 }
 .habit-badge.good { background: var(--good-bg); color: var(--good); border: 1px solid var(--good-border); }
 .habit-badge.bad { background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad-border); }
-.manage-habit-info { flex: 1; min-width: 0; }
+.manage-habit-info { flex: 1 1 auto; min-width: 0; }
 .manage-habit-info .name { font-weight: 500; font-size: 14px; }
 .manage-habit-info .desc { font-size: 12px; color: var(--text3); margin-top: 2px; }
 
@@ -476,8 +481,9 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
   padding: 14px 18px;
   margin-bottom: 8px;
 }
-.habit-progress-item .progress-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.habit-progress-item .prog-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; font-size: 14px; }
+.habit-progress-item .progress-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 10px; }
+.habit-progress-item .prog-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; font-size: 14px; }
+.progress-top-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
 .habit-progress-item .prog-pct {
   font-family: 'Martian Mono', monospace;
   font-size: 13px;
@@ -496,7 +502,7 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
 .prog-stat b { font-weight: 700; }
 .prog-stat.good { background: var(--good-bg); border-color: var(--good-border); color: var(--good); }
 .prog-stat.bad { background: var(--bad-bg); border-color: var(--bad-border); color: var(--bad); }
-.prog-stat.neutral { background: var(--bg3); border-color: var(--border); color: var(--text3); }
+.prog-stat.neutral { background: var(--bg3); border-color: var(--border); color: var(--text2); }
 .progress-bar-wrap { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
 .progress-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
 
@@ -523,6 +529,7 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
 .heatmap-cell.bad2 { background: rgba(245,101,101,0.5); }
 .heatmap-cell.bad3 { background: rgba(245,101,101,0.75); }
 .heatmap-cell.bad4 { background: rgba(245,101,101,1); }
+.heatmap-cell.tied { background: rgba(235,203,139,0.55); }
 .heatmap-cell.clickable { cursor: pointer; }
 .heatmap-cell.clickable:hover { outline: 1px solid var(--accent); outline-offset: 1px; }
 .heatmap-month-labels { display: flex; gap: 3px; margin-bottom: 4px; }
