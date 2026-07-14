@@ -591,19 +591,15 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
     font-size: 10px;
     padding: 4px 9px;
   }
-  /* buttons take full second row as a 3-col grid */
+  /* just the Sync button now that push/pull are automatic — right-align it */
   .header-actions {
     width: 100%;
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 5px;
+    display: flex;
+    justify-content: flex-end;
   }
   .header-actions button {
-    width: 100%;
-    padding: 7px 4px;
+    padding: 7px 14px;
     font-size: 11px;
-    text-align: center;
-    justify-content: center;
   }
   .header-actions input[type="file"] { display: none; }
 
@@ -736,8 +732,6 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
 @media (max-width: 380px) {
   .stat-card .stat-val { font-size: 20px; }
   .date-nav input[type="date"] { font-size: 11px; }
-  .header-actions { grid-template-columns: repeat(3, 1fr); }
-  .header-actions button { font-size: 11px; padding: 7px 2px; }
 }
 
 /* LOCK SCREEN */

@@ -2,6 +2,10 @@
 let habits = [];
 let logs = {};   // { "YYYY-MM-DD": { habitId: "yes"|"no"|null } }
 let deletedHabitIds = [];  // Track deleted habits to prevent re-adding during merge
+// Local edits not yet confirmed pushed to Supabase — the auto-sync merge step
+// must never let a stale remote value overwrite these (see mergeRemoteIntoLocal).
+let dirtyHabitIds = new Set();
+let dirtyLogKeys = new Set(); // `${date}|${habitId}`
 let selectedType = 'good';
 let editingHabitId = null;
 let currentDate = todayStr();
@@ -179,7 +183,9 @@ function logHabit(id, val) {
   if (!logs[currentDate]) logs[currentDate] = {};
   const current = logs[currentDate][id];
   logs[currentDate][id] = current === val ? null : val;
+  dirtyLogKeys.add(currentDate + '|' + id);
   saveData();
+  scheduleAutoSync();
   renderToday();
   showToast(val === 'yes' ? '✓ Logged!' : '✗ Logged!');
 }
@@ -259,12 +265,17 @@ function deleteHabit(id) {
   const btn = document.getElementById('confirm-delete-btn');
   btn.onclick = () => {
     habits = habits.filter(h => h.id !== id);
-    for (const date in logs) delete logs[date][id];
+    for (const date in logs) {
+      delete logs[date][id];
+      dirtyLogKeys.delete(date + '|' + id);
+    }
+    dirtyHabitIds.delete(id);
     // Track this deletion so it persists across syncs
     if (!deletedHabitIds.includes(id)) {
       deletedHabitIds.push(id);
     }
     saveData();
+    scheduleAutoSync();
     renderManageHabits();
     closeConfirmModal();
     showToast('Habit deleted');
@@ -341,8 +352,10 @@ function saveHabit() {
       habit.name = name;
       habit.desc = desc;
       habit.type = selectedType;
+      dirtyHabitIds.add(habit.id);
     }
     saveData();
+    scheduleAutoSync();
     closeAddModal();
     renderManageHabits();
     renderToday();
@@ -350,14 +363,17 @@ function saveHabit() {
     return;
   }
 
+  const newId = 'h' + Date.now();
   habits.push({
-    id: 'h' + Date.now(),
+    id: newId,
     name,
     desc,
     type: selectedType,
     createdAt: todayStr()
   });
+  dirtyHabitIds.add(newId);
   saveData();
+  scheduleAutoSync();
   closeAddModal();
   renderManageHabits();
   renderToday();
@@ -806,13 +822,11 @@ function isSyncConnected() {
 
 function updateSyncBtn() {
   const btn = document.getElementById('sync-btn');
-  const pullBtn = document.getElementById('header-pull-btn');
-  const pushBtn = document.getElementById('header-push-btn');
   if (!btn) return;
   const connected = isSyncConnected();
   btn.classList.toggle('active', connected);
-  if (pullBtn) pullBtn.style.display = connected ? 'inline-flex' : 'none';
-  if (pushBtn) pushBtn.style.display = connected ? 'inline-flex' : 'none';
+  const headerDot = document.getElementById('header-sync-dot');
+  if (headerDot) headerDot.className = 'sync-status-dot ' + (connected ? 'connected' : 'disconnected');
 }
 
 function openSyncModal() {
@@ -868,6 +882,7 @@ async function sendMagicLink() {
 async function syncSignOut() {
   if (sb) await sb.auth.signOut();
   syncSession = null;
+  clearTimeout(autoSyncTimer);
   updateSyncBtn();
   updateSyncModalState();
   showToast('Signed out');
@@ -878,6 +893,7 @@ async function initSyncAuth() {
   const { data: { session } } = await sb.auth.getSession();
   syncSession = session;
   updateSyncBtn();
+  if (session) runSync();
 
   sb.auth.onAuthStateChange((event, session) => {
     const wasConnected = isSyncConnected();
@@ -886,9 +902,34 @@ async function initSyncAuth() {
     if (document.getElementById('sync-modal-backdrop').classList.contains('open')) {
       updateSyncModalState();
     }
-    if (session && !wasConnected) showToast('Signed in ✓');
+    if (session && !wasConnected) {
+      showToast('Signed in ✓');
+      runSync();
+    }
   });
 }
+
+// Auto-sync: every sync cycle pulls+merges remote first, then pushes the
+// reconciled state, so a stale local push can never clobber a newer remote
+// row (see runSync). Triggered after local edits (debounced), on sign-in,
+// when the tab regains focus, and when connectivity comes back — never
+// requires the user to press anything.
+let autoSyncTimer = null;
+let syncRunning = false;
+let syncQueued = false;
+
+function scheduleAutoSync() {
+  if (!isSyncConnected()) return;
+  clearTimeout(autoSyncTimer);
+  autoSyncTimer = setTimeout(() => runSync({ silent: true }), 1500);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && isSyncConnected()) runSync({ silent: true });
+});
+window.addEventListener('online', () => {
+  if (isSyncConnected()) runSync({ silent: true });
+});
 
 // ─── UNTRUSTED-DATA SANITIZATION ─────────────────────────────────────────────
 // Applied to imported JSON files, which could have been hand-edited or come
@@ -962,19 +1003,28 @@ function sanitizeDataset(raw) {
 // Remote habits are the source of truth for anything already pushed (so edits
 // or deletions made on another device propagate on pull). A habit that only
 // exists locally (created on this device since the last push) is preserved.
-// Remote wins on log-entry conflicts (same habit, same day).
+// Remote wins on log-entry conflicts (same habit, same day) — UNLESS that
+// habit/entry has a local edit still pending push (dirtyHabitIds/dirtyLogKeys),
+// in which case the local version wins so a not-yet-pushed edit or deletion
+// can never be clobbered by the stale value this same sync cycle just pulled.
 function mergeRemoteIntoLocal(remoteHabits, remoteLogRows) {
-  const activeRemote = remoteHabits.filter(h => !h.deleted_at);
+  const activeRemote = remoteHabits.filter(h => !h.deleted_at && !deletedHabitIds.includes(h.id));
   const deletedRemoteIds = new Set(remoteHabits.filter(h => h.deleted_at).map(h => h.id));
   const remoteIds = new Set(activeRemote.map(h => h.id));
+  const localHabitsById = new Map(habits.map(h => [h.id, h]));
 
   const localOnlyHabits = habits.filter(h => !remoteIds.has(h.id) && !deletedRemoteIds.has(h.id));
   habits = [
-    ...activeRemote.map(h => ({ id: h.id, name: h.name, type: h.type, desc: h.description || '', createdAt: h.created_at })),
+    ...activeRemote.map(h =>
+      dirtyHabitIds.has(h.id) && localHabitsById.has(h.id)
+        ? localHabitsById.get(h.id)
+        : { id: h.id, name: h.name, type: h.type, desc: h.description || '', createdAt: h.created_at }
+    ),
     ...localOnlyHabits
   ];
 
   for (const row of remoteLogRows) {
+    if (dirtyLogKeys.has(row.date + '|' + row.habit_id)) continue;
     if (!logs[row.date]) logs[row.date] = {};
     logs[row.date][row.habit_id] = row.value;
   }
@@ -999,60 +1049,23 @@ function setSyncDotState(state, text) {
   const txt = document.getElementById('sync-status-text');
   if (dot) dot.className = 'sync-status-dot ' + state;
   if (txt) txt.textContent = text;
+  const headerDot = document.getElementById('header-sync-dot');
+  if (headerDot) headerDot.className = 'sync-status-dot ' + (state === 'connected' ? 'connected' : state);
+  const retryRow = document.getElementById('sync-retry-row');
+  if (retryRow) retryRow.style.display = state === 'error' ? 'block' : 'none';
 }
 
-async function syncPush() {
-  if (!sb || !syncSession) { showToast('Sign in to sync first'); return; }
+// Always pulls+merges remote data before pushing, so a push can never
+// clobber a newer remote row with stale local state (remote wins on
+// conflicts inside mergeRemoteIntoLocal) — see scheduleAutoSync for callers.
+async function runSync({ silent } = {}) {
+  if (!sb || !syncSession) return;
+  if (syncRunning) { syncQueued = true; return; }
+  syncRunning = true;
+
   const errEl = document.getElementById('sync-error');
-  errEl.textContent = '';
-  setSyncDotState('syncing', 'Pushing…');
-
-  const uid = syncSession.user.id;
-  const habitRows = habits.map(h => ({
-    id: h.id, user_id: uid, name: h.name, type: h.type,
-    description: h.desc || '', created_at: h.createdAt || null, deleted_at: null
-  }));
-  // Tombstone rows for habits deleted on this device — upsert is idempotent,
-  // so re-sending the same tombstone on every push is harmless.
-  const tombstoneRows = deletedHabitIds
-    .filter(id => !habits.some(h => h.id === id))
-    .map(id => ({
-      id, user_id: uid, name: '(deleted)', type: 'good', description: '', created_at: null,
-      deleted_at: new Date().toISOString()
-    }));
-  const logRows = [];
-  for (const date of Object.keys(logs)) {
-    for (const habitId of Object.keys(logs[date])) {
-      logRows.push({ user_id: uid, habit_id: habitId, date, value: logs[date][habitId] });
-    }
-  }
-
-  try {
-    if (habitRows.length || tombstoneRows.length) {
-      const { error } = await sb.from('habits').upsert([...habitRows, ...tombstoneRows]);
-      if (error) throw error;
-    }
-    if (logRows.length) {
-      const { error } = await sb.from('logs').upsert(logRows);
-      if (error) throw error;
-    }
-    const now = new Date().toISOString();
-    localStorage.setItem('ht_sync_last', now);
-    setSyncDotState('connected', 'Pushed ✓');
-    const last = document.getElementById('sync-last-time');
-    if (last) last.textContent = 'Last synced: ' + new Date(now).toLocaleString();
-    showToast('Pushed ✓');
-  } catch(e) {
-    errEl.textContent = e.message || 'Push failed';
-    setSyncDotState('error', 'Push failed');
-  }
-}
-
-async function syncPull() {
-  if (!sb || !syncSession) { showToast('Sign in to sync first'); return; }
-  const errEl = document.getElementById('sync-error');
-  errEl.textContent = '';
-  setSyncDotState('syncing', 'Pulling…');
+  if (errEl) errEl.textContent = '';
+  setSyncDotState('syncing', 'Syncing…');
 
   const uid = syncSession.user.id;
   try {
@@ -1069,15 +1082,56 @@ async function syncPull() {
     renderManageHabits();
     renderProgress();
 
+    const habitRows = habits.map(h => ({
+      id: h.id, user_id: uid, name: h.name, type: h.type,
+      description: h.desc || '', created_at: h.createdAt || null, deleted_at: null
+    }));
+    // Tombstone rows for habits deleted on this device — upsert is idempotent,
+    // so re-sending the same tombstone on every sync is harmless.
+    const tombstoneRows = deletedHabitIds
+      .filter(id => !habits.some(h => h.id === id))
+      .map(id => ({
+        id, user_id: uid, name: '(deleted)', type: 'good', description: '', created_at: null,
+        deleted_at: new Date().toISOString()
+      }));
+    const logRows = [];
+    for (const date of Object.keys(logs)) {
+      for (const habitId of Object.keys(logs[date])) {
+        logRows.push({ user_id: uid, habit_id: habitId, date, value: logs[date][habitId] });
+      }
+    }
+
+    // Snapshot which edits this push is actually about to send — only these
+    // get cleared from the dirty sets on success. Anything the user edits
+    // during the network round-trip below stays dirty for the next cycle,
+    // since it wasn't included in habitRows/logRows above.
+    const pushingHabitIds = new Set(dirtyHabitIds);
+    const pushingLogKeys = new Set(dirtyLogKeys);
+
+    if (habitRows.length || tombstoneRows.length) {
+      const { error } = await sb.from('habits').upsert([...habitRows, ...tombstoneRows]);
+      if (error) throw error;
+    }
+    if (logRows.length) {
+      const { error } = await sb.from('logs').upsert(logRows);
+      if (error) throw error;
+    }
+    for (const id of pushingHabitIds) dirtyHabitIds.delete(id);
+    for (const key of pushingLogKeys) dirtyLogKeys.delete(key);
+
     const now = new Date().toISOString();
     localStorage.setItem('ht_sync_last', now);
-    setSyncDotState('connected', 'Pulled ✓');
+    setSyncDotState('connected', 'Synced ✓');
     const last = document.getElementById('sync-last-time');
     if (last) last.textContent = 'Last synced: ' + new Date(now).toLocaleString();
-    showToast('Pulled ✓');
+    if (!silent) showToast('Synced ✓');
   } catch(e) {
-    errEl.textContent = e.message || 'Pull failed';
-    setSyncDotState('error', 'Pull failed');
+    if (errEl) errEl.textContent = e.message || 'Sync failed';
+    setSyncDotState('error', 'Sync failed');
+    showToast('Sync failed: ' + (e.message || 'unknown error'));
+  } finally {
+    syncRunning = false;
+    if (syncQueued) { syncQueued = false; runSync({ silent: true }); }
   }
 }
 
@@ -1111,7 +1165,15 @@ function importData(e) {
       // was deleted here but is present in the imported file actually stays
       // restored instead of vanishing again on the next sync.
       deletedHabitIds = clean.deletedHabitIds;
+      // Mark everything dirty so the next auto-sync's pull-merge treats this
+      // import as authoritative instead of letting stale remote rows win.
+      dirtyHabitIds = new Set(habits.map(h => h.id));
+      dirtyLogKeys = new Set();
+      for (const date of Object.keys(logs)) {
+        for (const habitId of Object.keys(logs[date])) dirtyLogKeys.add(date + '|' + habitId);
+      }
       saveData();
+      scheduleAutoSync();
       renderToday();
       renderManageHabits();
       showToast('Data imported!');
