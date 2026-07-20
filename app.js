@@ -10,8 +10,7 @@ let selectedType = 'good';
 let editingHabitId = null;
 let currentDate = todayStr();
 let progressPeriod = 7;
-let completionChart = null;
-let sparklineCharts = {}; // habitId -> Chart instance, for per-habit trend sparklines
+let hiddenChartSeries = new Set(); // legend click state — which trend-chart series ('good'/'bad') are toggled off
 
 function todayStr() {
   const d = new Date();
@@ -534,16 +533,6 @@ function renderHeatmap() {
   wrap.scrollLeft = wrap.scrollWidth; // default view to the most recent days
 }
 
-function getCompletionForDate(dateStr) {
-  const dayLog = logs[dateStr] || {};
-  // Only include habits that were created on or before this date
-  const relevantHabits = habits.filter(h => !h.createdAt || h.createdAt <= dateStr);
-  const total = relevantHabits.length;
-  if (!total) return 0;
-  const logged = relevantHabits.filter(h => dayLog[h.id] === 'yes' || dayLog[h.id] === 'no').length;
-  return Math.round((logged / total) * 100);
-}
-
 function getCompletionForDateByType(dateStr, type) {
   const dayLog = logs[dateStr] || {};
   // Only include habits that were created on or before this date
@@ -567,6 +556,162 @@ function avg(arr) {
   return vals.length ? Math.round(vals.reduce((a,b) => a+b, 0) / vals.length) : null;
 }
 
+// ─── LIGHTWEIGHT CANVAS CHARTS (no charting library) ─────────────────────────
+// Draws directly on <canvas> with the 2D context. Handles hi-DPI scaling,
+// gridlines, a % y-axis, thinned date labels, filled/dashed line series, and
+// dots — everything the two chart types in this app (trend line, sparkline)
+// actually use. No tooltips/animation/legend-in-canvas since the previous
+// Chart.js setup had tooltips disabled anyway; the legend lives in plain HTML
+// (.chart-legend) instead of being drawn on the canvas.
+const CHART_FONT = "11px 'Martian Mono', 'Cascadia Code', 'Fira Code', monospace";
+
+function setupCanvasHiDPI(canvas, cssWidth, cssHeight) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(cssWidth * dpr);
+  canvas.height = Math.round(cssHeight * dpr);
+  canvas.style.width = cssWidth + 'px';
+  canvas.style.height = cssHeight + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
+
+// Appends a monotone cubic (Fritsch-Carlson) Hermite spline through pts to
+// the current path, passing exactly through every point. Unlike a plain
+// Catmull-Rom spline, each segment's curve is mathematically bounded by its
+// two endpoint values, so a sharp peak that lands exactly on 100% (or a
+// trough on 0%) can never bulge past it — no overshoot, no clipping needed.
+// Assumes the path's current point is already pts[0] (caller does the moveTo).
+function appendSmoothCurve(ctx, pts) {
+  const n = pts.length;
+  if (n < 2) return;
+  if (n === 2) { ctx.lineTo(pts[1][0], pts[1][1]); return; }
+
+  const dx = [], slope = [];
+  for (let i = 0; i < n - 1; i++) {
+    dx.push(pts[i + 1][0] - pts[i][0]);
+    slope.push((pts[i + 1][1] - pts[i][1]) / dx[i]);
+  }
+
+  const m = new Array(n);
+  m[0] = slope[0];
+  m[n - 1] = slope[n - 2];
+  for (let i = 1; i < n - 1; i++) {
+    m[i] = (slope[i - 1] === 0 || slope[i] === 0 || (slope[i - 1] < 0) !== (slope[i] < 0))
+      ? 0 : (slope[i - 1] + slope[i]) / 2;
+  }
+  for (let i = 0; i < n - 1; i++) {
+    if (slope[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+    const a = m[i] / slope[i], b = m[i + 1] / slope[i];
+    const s = a * a + b * b;
+    if (s > 9) {
+      const t = 3 / Math.sqrt(s);
+      m[i] = t * a * slope[i];
+      m[i + 1] = t * b * slope[i];
+    }
+  }
+
+  for (let i = 0; i < n - 1; i++) {
+    const cp1x = pts[i][0] + dx[i] / 3, cp1y = pts[i][1] + m[i] * dx[i] / 3;
+    const cp2x = pts[i + 1][0] - dx[i] / 3, cp2y = pts[i + 1][1] - m[i + 1] * dx[i] / 3;
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, pts[i + 1][0], pts[i + 1][1]);
+  }
+}
+
+// series: [{ data: (number|null)[], color, fillColor?, dashed? }]
+// Nulls are skipped when tracing the line (gaps span directly to the next
+// point, matching the old spanGaps:true behavior) rather than breaking it.
+function drawTrendChart(canvas, labels, series) {
+  const cssWidth = canvas.parentElement.clientWidth;
+  const cssHeight = 212;
+  const padL = 38, padR = 10, padT = 8, padB = 30;
+  const ctx = setupCanvasHiDPI(canvas, cssWidth, cssHeight);
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+  const plotW = cssWidth - padL - padR;
+  const plotH = cssHeight - padT - padB;
+  const n = labels.length;
+  const xAt = i => padL + (n <= 1 ? plotW / 2 : (plotW * i) / (n - 1));
+  const yAt = v => padT + plotH - (plotH * v) / 100;
+
+  ctx.font = CHART_FONT;
+  ctx.lineWidth = 1;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  [0, 25, 50, 75, 100].forEach(v => {
+    const y = yAt(v);
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+    ctx.fillStyle = '#8b94a8';
+    ctx.fillText(v + '%', padL - 6, y);
+  });
+
+  // Edge labels are anchored inward (left/right) instead of centered so
+  // "Jul 20" at the last tick doesn't run past the canvas boundary and clip.
+  ctx.textBaseline = 'top';
+  const step = Math.max(1, Math.ceil(n / 10));
+  const ticks = [];
+  for (let i = 0; i < n; i += step) ticks.push(i);
+  if (ticks[ticks.length - 1] !== n - 1) ticks.push(n - 1);
+  ticks.forEach(i => {
+    ctx.textAlign = i === 0 ? 'left' : i === n - 1 ? 'right' : 'center';
+    ctx.fillText(labels[i], xAt(i), padT + plotH + 8);
+  });
+
+  series.forEach(s => {
+    const pts = [];
+    s.data.forEach((v, i) => { if (v != null) pts.push([xAt(i), yAt(v)]); });
+    if (!pts.length) return;
+
+    if (s.fillColor) {
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], yAt(0));
+      ctx.lineTo(pts[0][0], pts[0][1]);
+      appendSmoothCurve(ctx, pts);
+      ctx.lineTo(pts[pts.length - 1][0], yAt(0));
+      ctx.closePath();
+      ctx.fillStyle = s.fillColor;
+      ctx.fill();
+    }
+
+    ctx.setLineDash(s.dashed ? [4, 4] : []);
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    appendSmoothCurve(ctx, pts);
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = s.dashed ? 1.5 : 2.5;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (!s.dashed) {
+      ctx.fillStyle = s.color;
+      pts.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p[0], p[1], n <= 30 ? 3 : 1.6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+  });
+}
+
+function drawSparkline(canvas, points, color) {
+  const cssWidth = canvas.width, cssHeight = canvas.height; // fixed 60x20 from markup
+  const ctx = setupCanvasHiDPI(canvas, cssWidth, cssHeight);
+  ctx.clearRect(0, 0, cssWidth, cssHeight);
+  if (points.length < 2) return;
+  const pad = 2;
+  const w = cssWidth - pad * 2, h = cssHeight - pad * 2;
+  const xAt = i => pad + (w * i) / (points.length - 1);
+  const yAt = v => pad + h - v * h;
+  const pts = points.map((v, i) => [xAt(i), yAt(v)]);
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  appendSmoothCurve(ctx, pts);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
 function renderCompletionChart() {
   const dates = getDateRange(todayStr(), progressPeriod);
   const labels = dates.map(d => {
@@ -577,11 +722,10 @@ function renderCompletionChart() {
   const badData  = dates.map(d => getCompletionForDateByType(d, 'bad'));
   const goodAvg  = avg(goodData);
   const badAvg   = avg(badData);
-  const pr = progressPeriod <= 30 ? 4 : 2;
 
-  // Update summary stats above chart
   const goodHabits = habits.filter(h => h.type === 'good');
   const badHabits  = habits.filter(h => h.type === 'bad');
+
   const titleEl = document.getElementById('dual-chart-title');
   if (titleEl) {
     let summary = '';
@@ -591,90 +735,51 @@ function renderCompletionChart() {
     titleEl.innerHTML = 'Daily trend &nbsp;<span style="font-size:12px;color:var(--text3);font-weight:400;">' + summary + '</span>';
   }
 
-  const ctx = document.getElementById('completion-chart').getContext('2d');
-  if (completionChart) completionChart.destroy();
-
-  const datasets = [];
+  const series = [];
+  const legendItems = [];
   if (goodHabits.length) {
-    datasets.push({
-      label: 'Good habits',
-      data: goodData,
-      borderColor: '#3ecf8e',
-      backgroundColor: 'rgba(62,207,142,0.07)',
-      borderWidth: 2.5, fill: true, tension: 0.4,
-      pointBackgroundColor: '#3ecf8e',
-      pointBorderColor: '#0e0f11',
-      pointBorderWidth: 1.5,
-      pointRadius: pr, pointHoverRadius: 7,
-      spanGaps: true
-    });
-    if (goodAvg !== null) datasets.push({
-      label: 'Avg good',
-      data: dates.map(() => goodAvg),
-      borderColor: 'rgba(62,207,142,0.35)',
-      borderWidth: 1.5,
-      borderDash: [4, 4],
-      pointRadius: 0,
-      fill: false,
-      tension: 0,
-      spanGaps: true
-    });
+    legendItems.push({ key: 'good', color: '#3ecf8e', label: 'Good habits' });
+    if (!hiddenChartSeries.has('good')) {
+      series.push({ data: goodData, color: '#3ecf8e', fillColor: 'rgba(62,207,142,0.07)' });
+      if (goodAvg !== null) series.push({ data: dates.map(() => goodAvg), color: 'rgba(62,207,142,0.35)', dashed: true });
+    }
   }
   if (badHabits.length) {
-    datasets.push({
-      label: 'Bad habits',
-      data: badData,
-      borderColor: '#f56565',
-      backgroundColor: 'rgba(245,101,101,0.05)',
-      borderWidth: 2.5, fill: true, tension: 0.4,
-      pointBackgroundColor: '#f56565',
-      pointBorderColor: '#0e0f11',
-      pointBorderWidth: 1.5,
-      pointRadius: pr, pointHoverRadius: 7,
-      spanGaps: true
-    });
-    if (badAvg !== null) datasets.push({
-      label: 'Avg bad',
-      data: dates.map(() => badAvg),
-      borderColor: 'rgba(245,101,101,0.35)',
-      borderWidth: 1.5,
-      borderDash: [4, 4],
-      pointRadius: 0,
-      fill: false,
-      tension: 0,
-      spanGaps: true
-    });
+    legendItems.push({ key: 'bad', color: '#f56565', label: 'Bad habits' });
+    if (!hiddenChartSeries.has('bad')) {
+      series.push({ data: badData, color: '#f56565', fillColor: 'rgba(245,101,101,0.05)' });
+      if (badAvg !== null) series.push({ data: dates.map(() => badAvg), color: 'rgba(245,101,101,0.35)', dashed: true });
+    }
   }
 
-  completionChart = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: {
-          labels: {
-            color: '#9b9791', font: { size: 12 }, boxWidth: 10, boxHeight: 10,
-            filter: item => !item.text.startsWith('Avg')
-          }
-        },
-        tooltip: { enabled: false }
-      },
-      scales: {
-        y: {
-          min: 0, max: 100,
-          grid: { color: 'rgba(255,255,255,0.04)' },
-          ticks: { color: '#8b94a8', callback: v => v + '%', stepSize: 25 }
-        },
-        x: {
-          grid: { display: false },
-          ticks: { color: '#8b94a8', maxRotation: 0, maxTicksLimit: 10 }
-        }
-      }
-    }
-  });
+  const legendEl = document.getElementById('chart-legend');
+  if (legendEl) {
+    legendEl.innerHTML = legendItems.map(li =>
+      `<span class="chart-legend-item${hiddenChartSeries.has(li.key) ? ' hidden' : ''}" onclick="toggleChartSeries('${li.key}')">`
+      + `<span class="chart-legend-dot" style="background:${li.color}"></span>${li.label}</span>`
+    ).join('');
+  }
+
+  drawTrendChart(document.getElementById('completion-chart'), labels, series);
 }
+
+// Click a legend item to hide/show that series — same toggle-to-filter
+// behavior the old Chart.js legend gave for free, reimplemented here since
+// the legend is now plain HTML instead of something the library renders.
+function toggleChartSeries(key) {
+  hiddenChartSeries.has(key) ? hiddenChartSeries.delete(key) : hiddenChartSeries.add(key);
+  renderCompletionChart();
+}
+
+// Redraw the trend chart on resize (debounced) so it stays full-width —
+// there's no ResizeObserver/library doing this for us anymore.
+let chartResizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(chartResizeTimer);
+  chartResizeTimer = setTimeout(() => {
+    if (document.getElementById('section-progress').classList.contains('active')) renderCompletionChart();
+  }, 150);
+});
 
 // Longest run of consecutive 'yes' days a habit has ever had (not just the
 // current run) — scans day-by-day from creation (or earliest log) to today.
@@ -701,9 +806,6 @@ function getLongestStreak(habitId) {
 
 function renderPerHabitLines() {
   const wrap = document.getElementById('per-habit-lines');
-
-  Object.values(sparklineCharts).forEach(c => c.destroy());
-  sparklineCharts = {};
 
   if (!habits.length) {
     wrap.innerHTML = '<div style="color:var(--text3);font-size:14px;padding:8px 0;">No habits yet.</div>';
@@ -777,32 +879,13 @@ function renderPerHabitLines() {
   }
   wrap.innerHTML = html;
 
-  // Sparkline canvases only exist in the DOM now — create their charts after insertion.
+  // Sparkline canvases only exist in the DOM now — draw them after insertion.
   habits.forEach(function(h) {
     const canvas = document.getElementById('spark-' + h.id);
     if (!canvas) return;
     const habitDates = dates.filter(d => !h.createdAt || d >= h.createdAt);
     const points = habitDates.map(function(d) { return (logs[d] || {})[h.id] === 'yes' ? 1 : 0; });
-    sparklineCharts[h.id] = new Chart(canvas.getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: habitDates,
-        datasets: [{
-          data: points,
-          borderColor: h.type === 'good' ? '#3ecf8e' : '#f56565',
-          borderWidth: 1.5,
-          pointRadius: 0,
-          tension: 0.3,
-          fill: false
-        }]
-      },
-      options: {
-        responsive: false,
-        animation: false,
-        scales: { x: { display: false }, y: { display: false, min: 0, max: 1 } },
-        plugins: { legend: { display: false }, tooltip: { enabled: false } }
-      }
-    });
+    drawSparkline(canvas, points, h.type === 'good' ? '#3ecf8e' : '#f56565');
   });
 }
 

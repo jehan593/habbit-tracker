@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'Martian Mono';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/martian-mono.woff2') format('woff2');
+}
+
 :root {
   --bg: #2e3440;
   --bg2: #3b4252;
@@ -29,6 +37,12 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Always reserve the scrollbar's width, even on tabs short enough not to
+   need one (Settings) — otherwise the centered .header-inner/main content
+   shifts sideways whenever switching to/from a tab that changes whether a
+   scrollbar is present. */
+html { overflow-y: scroll; }
 
 body {
   font-family: var(--font);
@@ -459,6 +473,12 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
   margin-bottom: 16px;
 }
 .chart-card h3 { font-size: 14px; font-weight: 500; color: var(--text2); margin-bottom: 16px; }
+.chart-canvas-wrap { width: 100%; }
+#completion-chart { display: block; }
+.chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.chart-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text2); cursor: pointer; user-select: none; }
+.chart-legend-item.hidden { color: var(--text3); text-decoration: line-through; opacity: 0.5; }
+.chart-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 
 .settings-row {
   display: flex;
@@ -484,12 +504,7 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
 .habit-progress-item .progress-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 10px; }
 .habit-progress-item .prog-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; font-size: 14px; }
 .progress-top-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-left: auto; }
-.habit-progress-item .prog-pct {
-  font-family: 'Martian Mono', monospace;
-  font-size: 13px;
-  font-weight: 500;
-}
-.habit-sparkline { flex-shrink: 0; }
+.habit-sparkline { flex-shrink: 0; display: block; }
 .prog-stats { display: flex; gap: 8px; flex-wrap: wrap; }
 .prog-stat {
   font-size: 11px;
@@ -503,11 +518,6 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
 .prog-stat.good { background: var(--good-bg); border-color: var(--good-border); color: var(--good); }
 .prog-stat.bad { background: var(--bad-bg); border-color: var(--bad-border); color: var(--bad); }
 .prog-stat.neutral { background: var(--bg3); border-color: var(--border); color: var(--text2); }
-.progress-bar-wrap { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
-.progress-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
-
-/* IMPORT/EXPORT */
-.data-section { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
 
 /* CALENDAR HEATMAP */
 .heatmap-wrap { overflow-x: auto; padding-bottom: 4px; }
@@ -722,10 +732,6 @@ main { padding: 28px 24px; max-width: var(--max-w); margin: 0 auto; }
 
   /* ── Toast ── */
   .toast { bottom: 16px; right: 16px; left: 16px; right: 16px; text-align: center; font-size: 13px; }
-
-  /* ── Data section ── */
-  .data-section { flex-direction: column; }
-  .data-section button { width: 100%; }
 }
 
 /* Very small phones (≤380px) */
